@@ -36,49 +36,49 @@ list below.
 
 Allegro 5
 ---------
-Configuration files - implemented
-Display             - implemented (some icons stuff is missing)
-Events              - implemented (Joystick stuff is missing)
-File I/O            - not implemented (use PhysFS instead)
-Filesystem          - not implemented (use PhysFS instead)
-Fixed point math    - not implemented
+ * Configuration files - implemented
+ * Display             - implemented (some icons stuff is missing)
+ * Events              - implemented (Joystick stuff is missing)
+ * File I/O            - not implemented (use PhysFS instead)
+ * Filesystem          - not implemented (use PhysFS instead)
+* Fixed point math    - not implemented
     Lua uses numbers which are implemented as doubles -> makes no sense
-Fullscreen modes    - implemented
-Graphics            - implemented (bitmap locking is missing right now)
-Joystick            - not implemented (I was lazy...should be done!)
-Keyboard            - implemented (Allegro 5 key symbols are missing)
-Memory              - not implemented
+* Fullscreen modes    - implemented
+* Graphics            - implemented (bitmap locking is missing right now)
+* Joystick            - not implemented (I was lazy...should be done!)
+* Keyboard            - implemented (Allegro 5 key symbols are missing)
+* Memory              - not implemented
     Lua uses a dynamic memory management -> makes no sense
-Monitor             - implemented (some bits missing)
-Mouse               - implemented
-Path                - implemented
-State               - implemented
-System              - implemented (some bits missing)
-Threads             - not implemented
+* Monitor             - implemented (some bits missing)
+* Mouse               - implemented
+* Path                - implemented
+* State               - implemented
+* System              - implemented (some bits missing)
+* Threads             - not implemented
     I suppose this will be never implemented due to the single-threaded
     structure of Lua. Use Lua coroutines instead (even if they are no
     real threads).
-Time                - implemented (timeout missing)
-Timers              - implemented
-Transformations     - implemented
-UTF-8               - not implemented
+* Time                - implemented (timeout missing)
+* Timers              - implemented
+* Transformations     - implemented
+* UTF-8               - not implemented
     Lua has string as a built-in type, but it handles only byte strings.
     To circumvent that, there are some functions to deal with UTF-8 stuff.
-Miscellaneous       - not implemented (nothing of value here)
-Platform-specific   - not implemented
-Direct3D            - not implemented
-OpenGL              - not implemented
+* Miscellaneous       - not implemented (nothing of value here)
+* Platform-specific   - not implemented
+* Direct3D            - not implemented
+* OpenGL              - not implemented
 
 Allegro 5 - Addons
 ------------------
-Audio addon         - implemented (with audio codecs)
-Color addon         - implemented (missing some color to hsl etc.)
-Font addons         - implemented (no way to create bitmap fonts right now)
-Memfile addon       - not implemented
-Native dialogs      - not implemented
+* Audio addon         - implemented (with audio codecs)
+* Color addon         - implemented (missing some color to hsl etc.)
+* Font addons         - implemented (no way to create bitmap fonts right now)
+* Memfile addon       - not implemented
+* Native dialogs      - not implemented
     This will add even more dependencies on Linux/Unix.
-PhysicsFS addon     - implemendted (Legato forces the use of PhysFS)
-Primitives addon    - implemented (low level drawing functions missing)
+* PhysicsFS addon     - implemendted (Legato forces the use of PhysFS)
+* Primitives addon    - implemented (low level drawing functions missing)
 
 PhysicsFS
 ---------
@@ -103,23 +103,23 @@ Fire up your favourite editor and create a file in the "data" directory called
 
 Write some lines like:
 
-local al = legato.al
-
-local display = al.create_display(800, 600)
-local event_queue = al.create_event_queue()
-al.register_event_source(event_queue, display)
-
-while true do
-    local event = al.get_next_event(event_queue)
-    if event then
-        if event.type == 'display_close' then
-            return
-        end
-    end
-    al.clear_to_color(al.map_rgb(0, 0, 0))
-    al.flip_display()
-    al.rest(0.1)
-end
+>local al = legato.al
+>
+>local display = al.create_display(800, 600)
+>local event_queue = al.create_event_queue()
+>al.register_event_source(event_queue, display)
+>
+>while true do
+>    local event = al.get_next_event(event_queue)
+>    if event then
+>        if event.type == 'display_close' then
+>            return
+>        end
+>    end
+>    al.clear_to_color(al.map_rgb(0, 0, 0))
+>    al.flip_display()
+>    al.rest(0.1)
+>end
 
 Sorry there's no real manual yet. I'm going to create some in the future :(
 
