@@ -95,35 +95,24 @@ Fire up your favourite editor and create a file in the "data" directory called
 
 Write some lines like:
 
->local al = legato.al
->
->local display = al.create_display(800, 600)
->
->local event_queue = al.create_event_queue()
->
->al.register_event_source(event_queue, display)
->
->while true do
->
->    local event = al.get_next_event(event_queue)
->
->    if event then
->
->        if event.type == 'display_close' then
->
->            return
->
->        end
->
->    end
->
->    al.clear_to_color(al.map_rgb(0, 0, 0))
->
->    al.flip_display()
->
->    al.rest(0.1)
->
->end
+```Lua
+local al = legato.al -- improve speed
+local display = al.create_display(800, 600)
+local event_queue = al.create_event_queue()
+al.register_event_source(event_queue, display)
+
+while true do
+    local event = al.get_next_event(event_queue)
+    if event then
+        if event.type == 'display_close' then
+            return -- stop running if display get's closed
+        end
+    end
+    al.clear_to_color(al.map_rgb(0, 0, 0))
+    al.flip_display()
+    al.rest(0.1)
+end
+```
 
 Sorry there's no real manual yet. I'm going to create some in the future :(
 
