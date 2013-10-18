@@ -90,6 +90,8 @@ typedef struct object_t {
     int         dependency_ref;
 } object_t;
 
+/* #define DEBUG_OBJECT_LIFE */
+
 #define NOT_IMPLEMENTED_MACRO luaL_error(L, "Error: not implemented yet!"); return 0;
 
 #define LEGATO_VERSION_MAJOR    0
@@ -395,7 +397,9 @@ static void *push_data( lua_State *L, const char *name, const size_t size ) {
 static int push_object_with_dependency( lua_State *L, const char *name, void *ptr, const int destroy, const int dependency ) {
     object_t *obj;
     if ( ptr ) {
+#ifdef DEBUG_OBJECT_LIFE
         printf("new object: %s (%p)\n", name, ptr);
+#endif
         obj = (object_t*) push_data(L, name, sizeof(object_t));
         obj->ptr = ptr;
         obj->name = name;
@@ -441,7 +445,9 @@ static void *to_object_gc( lua_State *L, const int idx, const char *name ) {
 /* WARNING: this function does no sanity check!! Use it only after to_object/to_object_gc */
 static void clear_object( lua_State *L, const int idx ) {
     object_t *obj = (object_t*) lua_touserdata(L, idx);
+#ifdef DEBUG_OBJECT_LIFE
     printf("clear object: %s (%p)\n", obj->name, obj->ptr);
+#endif
     luaL_unref(L, LUA_REGISTRYINDEX, obj->dependency_ref);
     obj->ptr = NULL;
     obj->destroy = 0;
