@@ -70,6 +70,7 @@
 
 #include <physfs.h>
 #include <enet/enet.h>
+#include <zlib.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -101,7 +102,7 @@ typedef struct object_t {
 
 #define LEGATO_VERSION_MAJOR    0
 #define LEGATO_VERSION_MINOR    1
-#define LEGATO_VERSION_PATCH    0
+#define LEGATO_VERSION_PATCH    1
 
 #define LEGATO_LITTLE_ENDIAN    0
 #define LEGATO_BIG_ENDIAN       1
@@ -650,6 +651,12 @@ static int core_get_version( lua_State *L ) {
     return 3;
 }
 
+static int core_get_version_string( lua_State *L ) {
+    lua_pushfstring(L, "Legato Framework (%d.%d.%d) - written by Sebastian Steinhauer",
+            LEGATO_VERSION_MAJOR, LEGATO_VERSION_MINOR, LEGATO_VERSION_PATCH);
+    return 1;
+}
+
 static const char *core_load_script_callback( lua_State *L, void *data, size_t *size ) {
     static char buffer[4096];
     PHYSFS_sint64 read_bytes = PHYSFS_read((PHYSFS_File*)data, buffer, 1, sizeof(buffer));
@@ -698,6 +705,7 @@ static int core_get_UTF8_length( lua_State *L ) {
     
 static const luaL_Reg core__functions[] = {
     {"get_version", core_get_version},
+    {"get_version_string", core_get_version_string},
     {"load_script", core_load_script},
     {"encode_UTF8_codepoint", core_encode_UTF8_codepoint},
     {"get_UTF8_length", core_get_UTF8_length},
@@ -4707,7 +4715,40 @@ static const luaL_Reg peer__methods[] = {
 
 ================================================================================
 */
-/* FIXME: todo... */
+/*
+================================================================================
+
+                zlib
+
+================================================================================
+*/
+static int bin_adler32( lua_State *L ) {
+    const char *data;
+    size_t size;
+    uLong checksum;
+    data = luaL_checklstring(L, 1, &size);
+    checksum = adler32(0L, Z_NULL, 0);
+    checksum = adler32(checksum, (const Bytef*) data, (uInt) size);
+    lua_pushinteger(L, checksum);
+    return 1;
+}
+
+static int bin_crc32( lua_State *L ) {
+    const char *data;
+    size_t size;
+    uLong checksum;
+    data = luaL_checklstring(L, 1, &size);
+    checksum = crc32(0L, Z_NULL, 0);
+    checksum = crc32(checksum, (const Bytef*) data, (uInt) size);
+    lua_pushinteger(L, checksum);
+    return 1;
+}
+
+static const luaL_Reg bin__functions[] = {
+    {"adler32", bin_adler32},
+    {"crc32", bin_crc32},
+    {NULL, NULL}
+};
 
 /*
 ================================================================================
@@ -4748,6 +4789,8 @@ static int luaopen_legato( lua_State *L ) {
     lua_setfield(L, -2, "fs");
     luaL_newlib(L, enet__functions);
     lua_setfield(L, -2, "enet");
+    luaL_newlib(L, bin__functions);
+    lua_setfield(L, -2, "bin");
     return 1;
 }
 
