@@ -35,10 +35,15 @@
  Chanelog:
  ---------
 
+ 2013-11-04 - 0.1.1
+    Moved some functions to legato.core (because they don't belong to
+    legato.al). Implemented ENet support. Should be working now. Added mouse
+    cursor functions.
  2013-10-17 - 0.1.0
     This is the first version. Almost every Allegro 5 and PhysFS stuff is
     implemented right now. enet (robust fast UDP networking) is non-functional
     right now.
+    
 
 ================================================================================
 */
@@ -98,6 +103,14 @@ typedef struct object_t {
 #define LEGATO_VERSION_MINOR    1
 #define LEGATO_VERSION_PATCH    0
 
+#define LEGATO_LITTLE_ENDIAN    0
+#define LEGATO_BIG_ENDIAN       1
+#ifdef ALLEGRO_LITTLE_ENDIAN
+#define LEGATO_NATIVE_ENDIAN LEGATO_LITTLE_ENDIAN
+#else
+#define LEGATO_NATIVE_ENDIAN LEGATO_BIG_ENDIAN
+#endif /* ALLEGRO_LITTLE_ENDIAN */
+
 /*
 ================================================================================
 
@@ -112,6 +125,7 @@ typedef struct object_t {
 #define LEGATO_EVENT_QUEUE "legato_event_queue"
 #define LEGATO_KEYBOARD_STATE "legato_keyboard_state"
 #define LEGATO_MOUSE_STATE "legato_mouse_state"
+#define LEGATO_MOUSE_CURSOR "legato_mouse_cursor"
 #define LEGATO_PATH "legato_path"
 #define LEGATO_STATE "legato_state"
 #define LEGATO_TIMER "legato_timer"
@@ -124,6 +138,7 @@ typedef struct object_t {
 #define LEGATO_AUDIO_STREAM "legato_audio_stream"
 #define LEGATO_FONT "legato_font"
 #define LEGATO_FILE "legato_file"
+#define LEGATO_ADDRESS "legato_address"
 #define LEGATO_HOST "legato_host"
 #define LEGATO_PEER "legato_peer"
 
@@ -141,6 +156,7 @@ static ALLEGRO_BITMAP *to_bitmap( lua_State *L, const int idx );
 static ALLEGRO_EVENT_QUEUE *to_event_queue( lua_State *L, const int idx );
 static ALLEGRO_KEYBOARD_STATE *to_keyboard_state( lua_State *L, const int idx );
 static ALLEGRO_MOUSE_STATE *to_mouse_state( lua_State *L, const int idx );
+static ALLEGRO_MOUSE_CURSOR *to_mouse_cursor( lua_State *L, const int idx );
 static ALLEGRO_PATH *to_path( lua_State *L, const int idx );
 static ALLEGRO_STATE *to_state( lua_State *L, const int idx );
 static ALLEGRO_TIMER *to_timer( lua_State *L, const int idx );
@@ -153,6 +169,7 @@ static ALLEGRO_SAMPLE_INSTANCE *to_sample_instance( lua_State *L, const int idx 
 static ALLEGRO_AUDIO_STREAM *to_audio_stream( lua_State *L, const int idx );
 static ALLEGRO_FONT *to_font( lua_State *L, const int idx );
 static PHYSFS_File *to_file( lua_State *L, const int idx );
+static ENetAddress *to_address( lua_State *L, const int idx );
 static ENetHost *to_host( lua_State *L, const int idx );
 static ENetPeer *to_peer( lua_State *L, const int idx );
 
@@ -315,6 +332,29 @@ static const mapping_t standard_path_mapping[] = {
     {NULL, 0}
 };
 
+static const mapping_t mouse_cursor_mapping[] = {
+    {"default", ALLEGRO_SYSTEM_MOUSE_CURSOR_DEFAULT},
+    {"arrow", ALLEGRO_SYSTEM_MOUSE_CURSOR_ARROW},
+    {"busy", ALLEGRO_SYSTEM_MOUSE_CURSOR_BUSY},
+    {"question", ALLEGRO_SYSTEM_MOUSE_CURSOR_QUESTION},
+    {"edit", ALLEGRO_SYSTEM_MOUSE_CURSOR_EDIT},
+    {"move", ALLEGRO_SYSTEM_MOUSE_CURSOR_MOVE},
+    {"resize_n", ALLEGRO_SYSTEM_MOUSE_CURSOR_RESIZE_N},
+    {"resize_w", ALLEGRO_SYSTEM_MOUSE_CURSOR_RESIZE_W},
+    {"resize_s", ALLEGRO_SYSTEM_MOUSE_CURSOR_RESIZE_S},
+    {"resize_e", ALLEGRO_SYSTEM_MOUSE_CURSOR_RESIZE_E},
+    {"resize_nw", ALLEGRO_SYSTEM_MOUSE_CURSOR_RESIZE_NW},
+    {"resize_sw", ALLEGRO_SYSTEM_MOUSE_CURSOR_RESIZE_SW},
+    {"resize_se", ALLEGRO_SYSTEM_MOUSE_CURSOR_RESIZE_SE},
+    {"resize_ne", ALLEGRO_SYSTEM_MOUSE_CURSOR_RESIZE_NE},
+    {"progress", ALLEGRO_SYSTEM_MOUSE_CURSOR_PROGRESS},
+    {"precision", ALLEGRO_SYSTEM_MOUSE_CURSOR_PRECISION},
+    {"link", ALLEGRO_SYSTEM_MOUSE_CURSOR_LINK},
+    {"alt_select", ALLEGRO_SYSTEM_MOUSE_CURSOR_ALT_SELECT},
+    {"unavailable", ALLEGRO_SYSTEM_MOUSE_CURSOR_UNAVAILABLE},
+    {NULL, 0}
+};
+
 static const mapping_t audio_depth_mapping[] = {
     {"int8", ALLEGRO_AUDIO_DEPTH_INT8},
     {"int16", ALLEGRO_AUDIO_DEPTH_INT16},
@@ -367,6 +407,14 @@ static const mapping_t ttf_flag_mapping[] = {
     {NULL, 0}
 };
 
+static const mapping_t enet_packet_flag_mapping[] = {
+    {"reliable", ENET_PACKET_FLAG_RELIABLE},
+    {"unsequenced", ENET_PACKET_FLAG_UNSEQUENCED},
+    {"unreliable_fragment", ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT},
+    {"sent", ENET_PACKET_FLAG_SENT},
+    {NULL, 0}
+};
+
 /*
 ================================================================================
 
@@ -375,6 +423,11 @@ static const mapping_t ttf_flag_mapping[] = {
 ================================================================================
 */
 int global_object_table_ref = LUA_NOREF;
+
+static int push_ok( lua_State *L ) {
+    lua_pushboolean(L, 1);
+    return 1;
+}
 
 static int push_error( lua_State *L, const char *fmt, ... ) {
     va_list va;
@@ -566,41 +619,38 @@ static void create_object_table( lua_State *L ) {
     global_object_table_ref = luaL_ref(L, LUA_REGISTRYINDEX);
 }
 
-static int push_object_by_pointer( lua_State *L, const char *name, void *ptr ) {
+static int push_object_by_pointer_with_dependency( lua_State *L, const char *name, void *ptr, const int dependency ) {
     lua_rawgeti(L, LUA_REGISTRYINDEX, global_object_table_ref);
     lua_pushlightuserdata(L, ptr);
     lua_gettable(L, -2);
     lua_remove(L, -2);
     if ( lua_isnil(L, -1) ) {
         lua_pop(L, 1);
-        return push_object(L, name, ptr, 0);
+        return push_object_with_dependency(L, name, ptr, 0, dependency);
     } else {
         return 1;
     }
 }
 
+static int push_object_by_pointer( lua_State *L, const char *name, void *ptr ) {
+    return push_object_by_pointer_with_dependency(L, name, ptr, 0);
+}
+
 /*
 ================================================================================
 
-                ALLEGRO 5 - FUNCTIONS
+                CORE - FUNCTIONS
 
 ================================================================================
 */
-/*
-================================================================================
-
-                Generic functions
-
-================================================================================
-*/
-static int lg_get_version( lua_State *L ) {
+static int core_get_version( lua_State *L ) {
     lua_pushinteger(L, LEGATO_VERSION_MAJOR);
     lua_pushinteger(L, LEGATO_VERSION_MINOR);
     lua_pushinteger(L, LEGATO_VERSION_PATCH);
     return 3;
 }
 
-static const char *lg_load_script_callback( lua_State *L, void *data, size_t *size ) {
+static const char *core_load_script_callback( lua_State *L, void *data, size_t *size ) {
     static char buffer[4096];
     PHYSFS_sint64 read_bytes = PHYSFS_read((PHYSFS_File*)data, buffer, 1, sizeof(buffer));
     if ( read_bytes > 0 ) {
@@ -612,14 +662,14 @@ static const char *lg_load_script_callback( lua_State *L, void *data, size_t *si
     }
 }
 
-static int lg_load_script( lua_State *L ) {
+static int core_load_script( lua_State *L ) {
     int success;
     PHYSFS_File *fp = PHYSFS_openRead(luaL_checkstring(L, 1));
     if ( fp == NULL ) {
         luaL_error(L, "cannot load lua script " LUA_QS, lua_tostring(L, 1));
     }
     lua_pushfstring(L, "@%s", lua_tostring(L, 1));
-    success = lua_load(L, lg_load_script_callback, fp, lua_tostring(L, -1), NULL);
+    success = lua_load(L, core_load_script_callback, fp, lua_tostring(L, -1), NULL);
     PHYSFS_close(fp);
     lua_remove(L, -2);
     if ( success == LUA_OK ) {
@@ -630,7 +680,7 @@ static int lg_load_script( lua_State *L ) {
     }
 }
 
-static int lg_encode_UTF8_codepoint( lua_State *L ) {
+static int core_encode_UTF8_codepoint( lua_State *L ) {
     char utf8str[4];
     size_t utf8size;
     utf8size = al_utf8_encode(utf8str, luaL_checkint(L, 1));
@@ -638,14 +688,29 @@ static int lg_encode_UTF8_codepoint( lua_State *L ) {
     return 1;
 }
 
-static int lg_get_UTF8_length( lua_State *L ) {
+static int core_get_UTF8_length( lua_State *L ) {
     size_t size;
     ALLEGRO_USTR_INFO info;
     const char *data = luaL_checklstring(L, 1, &size);
     lua_pushinteger(L, al_ustr_length(al_ref_buffer(&info, data, size)));
     return 1;
 }
+    
+static const luaL_Reg core__functions[] = {
+    {"get_version", core_get_version},
+    {"load_script", core_load_script},
+    {"encode_UTF8_codepoint", core_encode_UTF8_codepoint},
+    {"get_UTF8_length", core_get_UTF8_length},
+    {NULL, NULL}
+};
 
+/*
+================================================================================
+
+                ALLEGRO 5 - FUNCTIONS
+
+================================================================================
+*/
 /*
 ================================================================================
 
@@ -1638,7 +1703,7 @@ static int lg_set_mouse_axis( lua_State *L ) {
 }
 
 static int lg_create_mouse_cursor( lua_State *L ) {
-    NOT_IMPLEMENTED_MACRO;
+    return push_object(L, LEGATO_MOUSE_CURSOR, al_create_mouse_cursor(to_bitmap(L, 1), luaL_checkint(L, 2), luaL_checkint(L, 3)), 1);
 }
 
 static int lg_destroy_mouse_cursor( lua_State *L ) {
@@ -1646,11 +1711,13 @@ static int lg_destroy_mouse_cursor( lua_State *L ) {
 }
 
 static int lg_set_mouse_cursor( lua_State *L ) {
-    NOT_IMPLEMENTED_MACRO;
+    al_set_mouse_cursor(to_display(L, 1), to_mouse_cursor(L, 2));
+    return 0;
 }
 
 static int lg_set_system_mouse_cursor( lua_State *L ) {
-    NOT_IMPLEMENTED_MACRO;
+    lua_pushboolean(L, al_set_system_mouse_cursor(to_display(L, 1), parse_enum_name(L, 2, mouse_cursor_mapping)));
+    return 1;
 }
 
 static int lg_get_mouse_cursor_position( lua_State *L ) {
@@ -2823,10 +2890,6 @@ static int lg_draw_elliptical_arc( lua_State *L ) {
 ================================================================================
 */
 static const luaL_Reg lg__functions[] = {
-    {"get_version", lg_get_version},
-    {"load_script", lg_load_script},
-    {"encode_UTF8_codepoint", lg_encode_UTF8_codepoint},
-    {"get_UTF8_length", lg_get_UTF8_length},
 
     {"create_config", lg_create_config},
     {"destroy_config", lg_destroy_config},
@@ -3443,6 +3506,34 @@ static const luaL_Reg mouse_state__methods[] = {
     {"get_state", lg_get_mouse_state},
     {"get_axis", lg_get_mouse_state_axis},
     {"button_down", lg_mouse_button_down},
+    {NULL, NULL}
+};
+
+/*
+================================================================================
+
+                Mouse Cursor
+
+================================================================================
+*/
+static ALLEGRO_MOUSE_CURSOR *to_mouse_cursor( lua_State *L, const int idx ) {
+    return (ALLEGRO_MOUSE_CURSOR*) to_object(L, 1, LEGATO_MOUSE_CURSOR);
+}
+
+static int mouse_cursor__tostring( lua_State *L ) {
+    lua_pushfstring(L, "%s: %p", LEGATO_MOUSE_CURSOR, to_mouse_cursor(L, 1));
+    return 1;
+}
+
+static int mouse_cursor__gc( lua_State *L ) {
+    al_destroy_mouse_cursor(to_mouse_cursor(L, 1));
+    clear_object(L, 1);
+    return 0;
+}
+
+static const luaL_Reg mouse_cursor__methods[] = {
+    {"__tostring", mouse_cursor__tostring},
+    {"__gc", mouse_cursor__gc},
     {NULL, NULL}
 };
 
@@ -4165,6 +4256,64 @@ static const luaL_Reg file__methods[] = {
 /*
 ================================================================================
 
+                Address
+
+================================================================================
+*/
+static int lg_enet_create_address( lua_State *L ) {
+    ENetAddress *addr = (ENetAddress*) push_data(L, LEGATO_ADDRESS, sizeof(ENetAddress));
+    addr->host = ENET_HOST_ANY;
+    addr->port = 0;
+    return 1;
+}
+
+static int lg_enet_get_address_port( lua_State *L ) {
+    lua_pushinteger(L, to_address(L, 1)->port);
+    return 1;
+}
+
+static int lg_enet_set_address_port( lua_State *L ) {
+    ENetAddress *addr = to_address(L, 1);
+    addr->port = luaL_checkint(L, 2);
+    return 0;
+}
+
+static int lg_enet_get_address_ip( lua_State *L ) {
+    char ipaddr[1024];
+    if ( enet_address_get_host_ip(to_address(L, 1), ipaddr, sizeof(ipaddr)) == 0 ) {
+        lua_pushstring(L, ipaddr);
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+static int lg_enet_get_address_ip_as_integer( lua_State *L ) {
+    lua_pushinteger(L, to_address(L, 1)->host);
+    return 1;
+}
+
+static int lg_enet_get_address_host( lua_State *L ) {
+    char hostname[1024];
+    if ( enet_address_get_host(to_address(L, 1), hostname, sizeof(hostname)) == 0 ) {
+        lua_pushstring(L, hostname);
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+static int lg_enet_set_address_host( lua_State *L ) {
+    if ( enet_address_set_host(to_address(L, 1), luaL_checkstring(L, 2)) == 0 ) {
+        return push_ok(L);
+    } else {
+        return push_error(L, "cannot resolve hostname " LUA_QS, lua_tostring(L, 2));
+    }
+}
+
+/*
+================================================================================
+
                 Host
 
 ================================================================================
@@ -4175,8 +4324,18 @@ static int lg_enet_compress_host_with_range_coder( lua_State *L ) {
 }
 
 static int lg_enet_create_host( lua_State *L ) {
-    NOT_IMPLEMENTED_MACRO;
+    ENetAddress *addr;
+    if ( lua_isnil(L, 1) ) {
+        addr = NULL;
+    } else {
+        addr = to_address(L, 1);
+    }
+    return push_object(L, LEGATO_HOST, enet_host_create(addr, luaL_checkint(L, 2), luaL_optint(L, 3, 0), luaL_optint(L, 4, 0), luaL_optint(L, 5, 0)), 1);
 }
+
+/*
+
+FIXME: not a good idea to implement. Peers will become invalid and will cause segfaults
 
 static int lg_enet_destroy_host( lua_State *L ) {
     ENetHost *host = (ENetHost*) to_object_gc(L, 1, LEGATO_HOST);
@@ -4186,13 +4345,29 @@ static int lg_enet_destroy_host( lua_State *L ) {
     }
     return 0;
 }
+*/
 
 static int lg_enet_connect_host( lua_State *L ) {
-    NOT_IMPLEMENTED_MACRO;
+    return push_object_with_dependency(L, LEGATO_PEER, enet_host_connect(to_host(L, 1), to_address(L, 2), luaL_checkint(L, 3), luaL_optint(L, 4, 0)), 0, 1);
+}
+
+static ENetPacket *create_enet_packet( lua_State *L, const int idx ) {
+    ENetPacket *packet;
+    size_t size;
+    enet_uint32 flags;
+    const char *data;
+    data = luaL_checklstring(L, idx, &size);
+    flags = parse_opt_flag_table(L, idx + 1, enet_packet_flag_mapping, 0);
+    packet = enet_packet_create(data, size, flags);
+    if ( packet == NULL ) {
+        luaL_error(L, "cannot create ENetPacket");
+    }
+    return packet;
 }
 
 static int lg_enet_broadcast_packet( lua_State *L ) {
-    NOT_IMPLEMENTED_MACRO;
+    enet_host_broadcast(to_host(L, 1), luaL_checkint(L, 2), create_enet_packet(L, 3));
+    return 0;
 }
 
 static int lg_enet_set_host_channel_limit( lua_State *L ) {
@@ -4222,12 +4397,60 @@ static int lg_enet_flush_host( lua_State *L ) {
     return 0;
 }
 
+static int lg_enet_push_event( lua_State *L, ENetHost *host, ENetEvent *event, int success ) {
+    if ( success < 0 ) {
+        return push_error(L, "failure on fetching host events");
+    }
+    lua_createtable(L, 0, 6);
+    switch( event->type ) {
+        case ENET_EVENT_TYPE_NONE:
+            set_str(L, "type", "none");
+            break;
+        case ENET_EVENT_TYPE_CONNECT:
+            set_str(L, "type", "connect");
+            push_object_by_pointer_with_dependency(L, LEGATO_PEER, event->peer, 1);
+            lua_setfield(L, -2, "peer");
+            break;
+        case ENET_EVENT_TYPE_DISCONNECT:
+            set_str(L, "type", "disconnect");
+            push_object_by_pointer_with_dependency(L, LEGATO_PEER, event->peer, 1);
+            lua_setfield(L, -2, "peer");
+            break;
+        case ENET_EVENT_TYPE_RECEIVE:
+            {
+                luaL_Buffer buffer;
+                set_str(L, "type", "receive");
+                push_object_by_pointer_with_dependency(L, LEGATO_PEER, event->peer, 1);
+                lua_setfield(L, -2, "peer");
+                set_int(L, "channel_id", event->channelID);
+                set_int(L, "data", event->data);
+                luaL_buffinit(L, &buffer);
+                luaL_addlstring(&buffer, (const char*) event->packet->data, event->packet->dataLength);
+                luaL_pushresult(&buffer);
+                lua_setfield(L, -2, "packet");
+                push_flag_table(L, event->packet->flags, enet_packet_flag_mapping);
+                lua_setfield(L, -2, "packet_flags");
+                enet_packet_destroy(event->packet);
+            }
+            break;
+    }
+    return 1;
+}
+
 static int lg_enet_check_host_events( lua_State *L ) {
-    NOT_IMPLEMENTED_MACRO;
+    int success;
+    ENetEvent event;
+    ENetHost *host = to_host(L, 1);
+    success = enet_host_check_events(host, &event);
+    return lg_enet_push_event(L, host, &event, success);
 }
 
 static int lg_enet_service_host( lua_State *L ) {
-    NOT_IMPLEMENTED_MACRO;
+    int success;
+    ENetEvent event;
+    ENetHost *host = to_host(L, 1);
+    success = enet_host_service(host, &event, luaL_optint(L, 2, 0));
+    return lg_enet_push_event(L, host, &event, success);
 }
 
 /*
@@ -4251,7 +4474,11 @@ static int lg_enet_get_peer_throttle( lua_State *L ) {
 }
 
 static int lg_enet_send_packet( lua_State *L ) {
-    NOT_IMPLEMENTED_MACRO;
+    if ( enet_peer_send(to_peer(L, 1), luaL_checkint(L, 2), create_enet_packet(L, 3)) >= 0 ) {
+        return push_ok(L);
+    } else {
+        return push_error(L, "cannot send packet");
+    }
 }
 
 static int lg_enet_reset_peer( lua_State *L ) {
@@ -4302,7 +4529,21 @@ static int lg_enet_disconnect_peer_later( lua_State *L ) {
     return 0;
 }
 
+static int lg_enet_get_peer_address( lua_State *L ) {
+    ENetAddress *addr = (ENetAddress*) push_data(L, LEGATO_ADDRESS, sizeof(ENetAddress));
+    *addr = to_peer(L, 1)->address;
+    return 1;
+}
+
 static const luaL_Reg enet__functions[] = {
+    {"create_address", lg_enet_create_address},
+    {"get_address_port", lg_enet_get_address_port},
+    {"set_address_port", lg_enet_set_address_port},
+    {"get_address_ip", lg_enet_get_address_ip},
+    {"get_address_ip_as_integer", lg_enet_get_address_ip_as_integer},
+    {"get_address_host", lg_enet_get_address_host},
+    {"set_address_host", lg_enet_set_address_host},
+
     {"compress_host_with_range_coder", lg_enet_compress_host_with_range_coder},
     {"create_host", lg_enet_create_host},
     {"connect_host", lg_enet_connect_host},
@@ -4327,6 +4568,7 @@ static const luaL_Reg enet__functions[] = {
     {"disconnect_peer", lg_enet_disconnect_peer},
     {"disconnect_peer_now", lg_enet_disconnect_peer_now},
     {"disconnect_peer_later", lg_enet_disconnect_peer_later},
+    {"get_peer_address", lg_enet_get_peer_address},
 
     {NULL, NULL}
 };
@@ -4338,6 +4580,43 @@ static const luaL_Reg enet__functions[] = {
 
 ================================================================================
 */
+/*
+================================================================================
+
+                Address
+
+================================================================================
+*/
+static ENetAddress *to_address( lua_State *L, const int idx ) {
+    return (ENetAddress*) luaL_checkudata(L, idx, LEGATO_ADDRESS);
+}
+
+static int address__tostring( lua_State *L ) {
+    char ipaddr[1024];
+    ENetAddress *addr = to_address(L, 1);
+    enet_address_get_host_ip(addr, ipaddr, sizeof(ipaddr));
+    lua_pushfstring(L, "%s: [%s]:%d", LEGATO_ADDRESS, ipaddr, addr->port);
+    return 1;
+}
+
+static int address__eq( lua_State *L ) {
+    ENetAddress *a, *b;
+    a = to_address(L, 1); b = to_address(L, 2);
+    return (a->host == b->host) && (a->port && b->port);
+}
+
+static const luaL_Reg address__methods[] = {
+    {"__tostring", address__tostring},
+    {"__eq", address__eq},
+    {"get_port", lg_enet_get_address_port},
+    {"set_port", lg_enet_set_address_port},
+    {"get_ip", lg_enet_get_address_ip},
+    {"get_ip_as_integer", lg_enet_get_address_ip_as_integer},
+    {"get_host", lg_enet_get_address_host},
+    {"set_host", lg_enet_set_address_host},
+    {NULL, NULL}
+};
+
 /*
 ================================================================================
 
@@ -4354,6 +4633,12 @@ static int host__tostring( lua_State *L ) {
     return 1;
 }
 
+static int host__gc( lua_State *L ) {
+    enet_host_destroy(to_host(L, 1));
+    clear_object(L, 1);
+    return 0;
+}
+
 /*
 static int host__eq( lua_State *L ) {
     return push_equal_check(L, LEGATO_HOST);
@@ -4363,7 +4648,7 @@ static int host__eq( lua_State *L ) {
 static const luaL_Reg host__methods[] = {
     {"__tostring", host__tostring},
     /*{"__eq", host__eq},*/
-    {"__gc", lg_enet_destroy_host},
+    {"__gc", host__gc},
     {NULL, NULL}
 };
 
@@ -4411,8 +4696,18 @@ static const luaL_Reg peer__methods[] = {
     {"disconnect", lg_enet_disconnect_peer},
     {"disconnect_now", lg_enet_disconnect_peer_now},
     {"disconnect_later", lg_enet_disconnect_peer_later},
+    {"get_address", lg_enet_get_peer_address},
     {NULL, NULL}
 };
+
+/*
+================================================================================
+
+                BINARY FUNCTIONS
+
+================================================================================
+*/
+/* FIXME: todo... */
 
 /*
 ================================================================================
@@ -4429,6 +4724,7 @@ static int luaopen_legato( lua_State *L ) {
     create_meta(L, LEGATO_EVENT_QUEUE, event_queue__methods);
     create_meta(L, LEGATO_KEYBOARD_STATE, keyboard_state__methods);
     create_meta(L, LEGATO_MOUSE_STATE, mouse_state__methods);
+    create_meta(L, LEGATO_MOUSE_CURSOR, mouse_cursor__methods);
     create_meta(L, LEGATO_STATE, state__methods);
     create_meta(L, LEGATO_TIMER, timer__methods);
     create_meta(L, LEGATO_TRANSFORM, transform__methods);
@@ -4440,16 +4736,23 @@ static int luaopen_legato( lua_State *L ) {
     create_meta(L, LEGATO_AUDIO_STREAM, audio_stream__methods);
     create_meta(L, LEGATO_FONT, font__methods);
     create_meta(L, LEGATO_FILE, file__methods);
+    create_meta(L, LEGATO_ADDRESS, address__methods);
+    create_meta(L, LEGATO_HOST, host__methods);
+    create_meta(L, LEGATO_PEER, peer__methods);
     lua_newtable(L);
+    luaL_newlib(L, core__functions);
+    lua_setfield(L, -2, "core");
     luaL_newlib(L, lg__functions);
     lua_setfield(L, -2, "al");
     luaL_newlib(L, fs__functions);
     lua_setfield(L, -2, "fs");
+    luaL_newlib(L, enet__functions);
+    lua_setfield(L, -2, "enet");
     return 1;
 }
 
 static int push_boot_script( lua_State *L ) {
-    static const char *filenames[] = { "boot.lua", "boot.lc", "/scripts/boot.lua", "/script/boot.lc",
+    static const char *filenames[] = { "boot.lua", "boot.lc", "/script/boot.lua", "/script/boot.lc",
         "BOOT.LUA", "BOOT.LC", "BOOT", NULL };
     int i;
     for ( i = 0; filenames[i]; ++i ) {
@@ -4463,7 +4766,7 @@ static int push_boot_script( lua_State *L ) {
 }
 
 static int boot_legato( lua_State *L ) {
-    lua_pushcfunction(L, lg_load_script);
+    lua_pushcfunction(L, core_load_script);
     push_boot_script(L);
     lua_call(L, 1, 1); /* load script */
     lua_call(L, 0, 0); /* run chunk */
@@ -4486,6 +4789,7 @@ int main( int argc, char *argv[] ) {
     lua_State *L;
 
     PHYSFS_init(argv[0]);
+    enet_initialize();
 
     al_init();
     al_install_keyboard();
@@ -4521,6 +4825,7 @@ int main( int argc, char *argv[] ) {
     al_uninstall_audio();
     al_uninstall_system();
 
+    enet_deinitialize();
     PHYSFS_deinit();
 
     return EXIT_SUCCESS;
