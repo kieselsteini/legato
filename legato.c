@@ -34,7 +34,15 @@
 
  Chanelog:
  ---------
-
+ 
+ 2013-11-14 - 0.2.0
+    * added zlib compression/decompression stuff
+    * crc32/adler32 routines (zlib as well)
+    * add new UTF8 string split (split into codepoints)
+    * new binary packing/unpacking routines
+    * new base64 encoder/decoder
+    * new legato.rand module
+    * added Linear congruential generator
  2013-11-04 - 0.1.1
     Moved some functions to legato.core (because they don't belong to
     legato.al). Implemented ENet support. Should be working now. Added mouse
@@ -76,6 +84,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
+#include <math.h>
 
 #ifdef ALLEGRO_WINDOWS
 #include <allegro5/allegro_direct3d.h>
@@ -84,25 +93,13 @@
 #define LEGATO_DIRECT3D 0
 #endif /* ALLEGRO_WINDOWS */
 
-typedef struct mapping_t {
-    const char      *name;
-    const int       value;
-} mapping_t;
-
-typedef struct object_t {
-    void        *ptr;
-    const char  *name;
-    int         destroy;
-    int         dependency_ref;
-} object_t;
-
-/* #define DEBUG_OBJECT_LIFE */
+/* #define DEBUG_OBJECT_LIFE */ /* activate to see object creation/destruction */
 
 #define NOT_IMPLEMENTED_MACRO luaL_error(L, "Error: not implemented yet!"); return 0;
 
 #define LEGATO_VERSION_MAJOR    0
-#define LEGATO_VERSION_MINOR    1
-#define LEGATO_VERSION_PATCH    1
+#define LEGATO_VERSION_MINOR    2
+#define LEGATO_VERSION_PATCH    0
 
 #define LEGATO_LITTLE_ENDIAN    0
 #define LEGATO_BIG_ENDIAN       1
@@ -111,6 +108,8 @@ typedef struct object_t {
 #else
 #define LEGATO_NATIVE_ENDIAN LEGATO_BIG_ENDIAN
 #endif /* ALLEGRO_LITTLE_ENDIAN */
+
+#define ZLIB_COMPRESSION_BUFFER_SIZE (1024 * 16) /* compress is 16kb chunks */
 
 /*
 ================================================================================
@@ -142,6 +141,30 @@ typedef struct object_t {
 #define LEGATO_ADDRESS "legato_address"
 #define LEGATO_HOST "legato_host"
 #define LEGATO_PEER "legato_peer"
+#define LEGATO_RAND_LCG "legato_rand_lcg"
+
+/*
+================================================================================
+
+                STRUCTURES
+
+================================================================================
+*/
+typedef struct mapping_t {
+    const char      *name;
+    const int       value;
+} mapping_t;
+
+typedef struct object_t {
+    void            *ptr;
+    const char      *name;
+    int             destroy;
+    int             dependency_ref;
+} object_t;
+
+typedef struct rand_lgc_t {
+    uint32_t        X, a, c;
+} rand_lcg_t;
 
 /*
 ================================================================================
@@ -173,6 +196,7 @@ static PHYSFS_File *to_file( lua_State *L, const int idx );
 static ENetAddress *to_address( lua_State *L, const int idx );
 static ENetHost *to_host( lua_State *L, const int idx );
 static ENetPeer *to_peer( lua_State *L, const int idx );
+static rand_lcg_t *to_rand_lcg( lua_State *L, const int idx );
 
 /*
 ================================================================================
@@ -702,6 +726,22 @@ static int core_get_UTF8_length( lua_State *L ) {
     lua_pushinteger(L, al_ustr_length(al_ref_buffer(&info, data, size)));
     return 1;
 }
+
+static int core_split_UTF8_string( lua_State *L ) {
+    size_t str_size;
+    const ALLEGRO_USTR *ustr;
+    ALLEGRO_USTR_INFO info;
+    int i, pos;
+    int32_t codepoint;
+    const char *str = luaL_checklstring(L, 1, &str_size);
+    ustr = al_ref_buffer(&info, str, str_size);
+    lua_newtable(L);
+    for ( i = 1, pos = 0; (codepoint = al_ustr_get_next(ustr, &pos)) > 0; ++i ) {
+        lua_pushinteger(L, codepoint);
+        lua_rawseti(L, -2, i);
+    }
+    return 1;
+}
     
 static const luaL_Reg core__functions[] = {
     {"get_version", core_get_version},
@@ -709,6 +749,7 @@ static const luaL_Reg core__functions[] = {
     {"load_script", core_load_script},
     {"encode_UTF8_codepoint", core_encode_UTF8_codepoint},
     {"get_UTF8_length", core_get_UTF8_length},
+    {"split_UTF8_string", core_split_UTF8_string},
     {NULL, NULL}
 };
 
@@ -4718,10 +4759,24 @@ static const luaL_Reg peer__methods[] = {
 /*
 ================================================================================
 
-                zlib
+                zlib compression
 
 ================================================================================
 */
+static void bin_zlib_error( lua_State *L, const int code, const char *mode ) {
+    const char *msg;
+    switch ( code ) {
+        case Z_NEED_DICT: msg = "need dict"; break;
+        case Z_STREAM_ERROR: msg = "stream error"; break;
+        case Z_DATA_ERROR: msg = "data error"; break;
+        case Z_MEM_ERROR: msg = "memory error"; break;
+        case Z_BUF_ERROR: msg = "buffer error"; break;
+        case Z_VERSION_ERROR: msg = "version error"; break;
+        default: msg = "unknown error"; break;
+    }
+    luaL_error(L, "%s on %s()", msg, mode);
+}
+
 static int bin_adler32( lua_State *L ) {
     const char *data;
     size_t size;
@@ -4744,9 +4799,432 @@ static int bin_crc32( lua_State *L ) {
     return 1;
 }
 
+static int bin_zlib_compress( lua_State *L ) {
+    luaL_Buffer buffer;
+    char stackbuf[ZLIB_COMPRESSION_BUFFER_SIZE];
+    z_stream zs;
+    int compression_level, errcode;
+    size_t data_len;
+    const char *data = luaL_checklstring(L, 1, &data_len);
+
+    compression_level = luaL_optint(L, 2, Z_DEFAULT_COMPRESSION);
+    zs.zalloc = Z_NULL;
+    zs.zfree = Z_NULL;
+    zs.opaque = Z_NULL;
+    zs.next_in = (Bytef*) data;
+    zs.avail_in = (uInt) data_len;
+    errcode = deflateInit(&zs, compression_level);
+    if ( errcode != Z_OK ) {
+        bin_zlib_error(L, errcode, "deflateInit");
+    }
+    luaL_buffinit(L, &buffer);
+    for ( ;; ) {
+        zs.next_out = (Bytef*) stackbuf;
+        zs.avail_out = (uInt) sizeof(stackbuf);
+        errcode = deflate(&zs, Z_FINISH);
+        switch ( errcode ) {
+            case Z_OK:
+                luaL_addlstring(&buffer, stackbuf, sizeof(stackbuf) - zs.avail_out);
+                break;
+            case Z_STREAM_END:
+                luaL_addlstring(&buffer, stackbuf, sizeof(stackbuf) - zs.avail_out);
+                luaL_pushresult(&buffer);
+                deflateEnd(&zs);
+                return 1;
+            default:
+                deflateEnd(&zs);
+                bin_zlib_error(L, errcode, "deflate");
+        }
+    }
+}
+
+static int bin_zlib_uncompress( lua_State *L ) {
+    luaL_Buffer buffer;
+    char stackbuf[ZLIB_COMPRESSION_BUFFER_SIZE];
+    z_stream zs;
+    int errcode;
+    size_t data_len;
+    const char *data = luaL_checklstring(L, 1, &data_len);
+
+    zs.zalloc = Z_NULL;
+    zs.zfree = Z_NULL;
+    zs.opaque = Z_NULL;
+    zs.next_in = (Bytef*) data;
+    zs.avail_in = (uInt) data_len;
+    errcode = inflateInit(&zs);
+    if ( errcode != Z_OK ) {
+        bin_zlib_error(L, errcode, "inflateInit");
+    }
+    luaL_buffinit(L, &buffer);
+    for ( ;; ) {
+        zs.next_out = (Bytef*) stackbuf;
+        zs.avail_out = (uInt) sizeof(stackbuf);
+        errcode = inflate(&zs, Z_FINISH);
+        switch ( errcode ) {
+            case Z_OK:
+                luaL_addlstring(&buffer, stackbuf, sizeof(stackbuf) - zs.avail_out);
+                break;
+            case Z_STREAM_END:
+                luaL_addlstring(&buffer, stackbuf, sizeof(stackbuf) - zs.avail_out);
+                luaL_pushresult(&buffer);
+                inflateEnd(&zs);
+                return 1;
+            default:
+                inflateEnd(&zs);
+                bin_zlib_error(L, errcode, "inflate");
+        }
+    }
+}
+
+/*
+================================================================================
+
+                Binary packing/unpacking
+
+================================================================================
+*/
+static int bin_get_packed_size( lua_State *L ) {
+    size_t bytes;
+    const char *fmt = luaL_checkstring(L, 1);
+    for ( bytes = 0; *fmt; ++fmt ) {
+        switch ( *fmt ) {
+            case '@': case '<': case '>': break;
+            case 'b': case 'B': case 'x': case '?':
+                bytes += 1; break;
+            case 'h': case 'H':
+                bytes += 2; break;
+            case 'i': case 'I':
+                bytes += 4; break;
+            case 'l': case 'L':
+                bytes += 8; break;
+            case 'f':
+                bytes += sizeof(float); break;
+            case 'd':
+                bytes += sizeof(double); break;
+            default:
+                return push_error(L, "unknown format character " LUA_QL("%c"), *fmt);
+        }
+    }
+    lua_pushinteger(L, bytes);
+    return 1;
+}
+
+static void bin_pack_integer( lua_State *L, luaL_Buffer *buffer, const int arg, const int size, const int endianess ) {
+    uint64_t value;
+    int i;
+    char buff[32];
+    lua_Number n = luaL_checknumber(L, arg);
+    if ( n < 0 ) {
+        value = (uint64_t)(int64_t) n;
+    } else {
+        value = (uint64_t) n;
+    }
+    if ( endianess == LEGATO_LITTLE_ENDIAN ) {
+        for ( i = 0; i < size; ++i ) {
+            buff[i] = (value & 0xff);
+            value >>= 8;
+        }
+    } else {
+        for ( i = size - 1; i >= 0; --i ) {
+            buff[i] = (value & 0xff);
+            value >>= 8;
+        }
+    }
+    luaL_addlstring(buffer, buff, size);
+}
+
+static int bin_pack( lua_State *L ) {
+    luaL_Buffer buffer;
+    int endianess, arg;
+    const char *fmt = luaL_checkstring(L, 1);
+    luaL_buffinit(L, &buffer);
+    endianess = LEGATO_NATIVE_ENDIAN;
+    for ( arg = 2; *fmt; ++fmt ) {
+        switch ( *fmt ) {
+            case '@': endianess = LEGATO_NATIVE_ENDIAN; break;
+            case '<': endianess = LEGATO_LITTLE_ENDIAN; break;
+            case '>': endianess = LEGATO_BIG_ENDIAN; break;
+            case 'b': case 'B':
+                bin_pack_integer(L, &buffer, arg++, 1, endianess);
+                break;
+            case 'h': case 'H':
+                bin_pack_integer(L, &buffer, arg++, 2, endianess);
+                break;
+            case 'i': case 'I':
+                bin_pack_integer(L, &buffer, arg++, 4, endianess);
+                break;
+            case 'l': case 'L':
+                bin_pack_integer(L, &buffer, arg++, 8, endianess);
+                break;
+            case 'f':
+                {
+                    float f = (float) luaL_checknumber(L, arg++);
+                    luaL_addlstring(&buffer, (char*) &f, sizeof(float));
+                    break;
+                }
+            case 'd':
+                {
+                    double d = (double) luaL_checknumber(L, arg++);
+                    luaL_addlstring(&buffer, (char*) &d, sizeof(double));
+                    break;
+                }
+            default:
+                return push_error(L, "unknown format character " LUA_QL("%c"), *fmt);
+        }
+    }
+    luaL_pushresult(&buffer);
+    return 1;
+}
+
+static const void *bin_check_unpack_size( lua_State *L, const size_t wanted, size_t *size, const char **data ) {
+    if ( *size >= wanted ) {
+        const void *ptr = *data;
+        *size -= wanted;
+        *data += wanted;
+        return ptr;
+    } else {
+        luaL_error(L, "not enough bytes to decode");
+        return NULL;
+    }
+}
+
+static void bin_unpack_integer( lua_State *L, const int size, const int is_signed, const int endianess, size_t *data_size, const char **data ) {
+    int i;
+    unsigned long l = 0;
+    const char *buffer = (const char*) bin_check_unpack_size(L, (const size_t) size, data_size, data);
+    if ( endianess == LEGATO_BIG_ENDIAN ) {
+        for ( i = 0; i < size; ++i ) {
+            l <<= 8;
+            l |= (unsigned long)(uint8_t) *buffer++;
+        }
+    } else {
+        buffer += size - 1;
+        for ( i = 0; i < size; ++i ) {
+            l <<= 8;
+            l |= (unsigned long)(uint8_t) *buffer--;
+        }
+    }
+    if ( is_signed ) {
+        unsigned long mask = (unsigned long)((~(0L))) << (size*8-1);
+        if ( l & mask ) {
+            l |= mask;
+        }
+        lua_pushnumber(L, (lua_Number)(long) l);
+    } else {
+        lua_pushnumber(L, (lua_Number) l);
+    }
+}
+
+static int bin_unpack( lua_State *L ) {
+    const char *data;
+    size_t size;
+    int args, endianess;
+    const char *fmt = luaL_checkstring(L, 1);
+    data = luaL_checklstring(L, 2, &size);
+    endianess = LEGATO_NATIVE_ENDIAN;
+    for ( args = 0; *fmt; ++fmt ) {
+        switch ( *fmt ) {
+            case '@': endianess = LEGATO_NATIVE_ENDIAN; break;
+            case '<': endianess = LEGATO_LITTLE_ENDIAN; break;
+            case '>': endianess = LEGATO_BIG_ENDIAN; break;
+            case 'b': bin_unpack_integer(L, 1, true, endianess, &size, &data); ++args; break;
+            case 'B': bin_unpack_integer(L, 1, false, endianess, &size, &data); ++args; break;
+            case 'h': bin_unpack_integer(L, 2, true, endianess, &size, &data); ++args; break;
+            case 'H': bin_unpack_integer(L, 2, false, endianess, &size, &data); ++args; break;
+            case 'i': bin_unpack_integer(L, 4, true, endianess, &size, &data); ++args; break;
+            case 'I': bin_unpack_integer(L, 4, false, endianess, &size, &data); ++args; break;
+            case 'l': bin_unpack_integer(L, 8, true, endianess, &size, &data); ++args; break;
+            case 'L': bin_unpack_integer(L, 8, false, endianess, &size, &data); ++args; break;
+            case 'f':
+                lua_pushnumber(L, *((float*) bin_check_unpack_size(L, sizeof(float), &size, &data)));
+                ++args;
+                break;
+            case 'd':
+                lua_pushnumber(L, *((double*) bin_check_unpack_size(L, sizeof(double), &size, &data)));
+                ++args;
+                break;
+            default:
+                return push_error(L, "unknown format character " LUA_QL("%c"), *fmt);
+        }
+    }
+    return args;
+}
+
+/*
+================================================================================
+
+                Base64 encoding/decoding
+
+================================================================================
+*/
+static const char base64_code[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+static void bin_encode_base64_data( luaL_Buffer *buffer, uint8_t c1, uint8_t c2, uint8_t c3, int n ) {
+    int i;
+    char s[4];
+    uint32_t tuple = c3 + 256UL * (c2 + 256UL * c1);
+    for ( i = 0; i < 4; ++i ) {
+        s[3 - i] = base64_code[tuple % 64];
+        tuple /= 64;
+    }
+    for ( i = n + 1; i < 4; ++i ) {
+        s[i] = '=';
+    }
+    luaL_addlstring(buffer, s, 4);
+}
+
+static int bin_encode_base64( lua_State *L ) {
+    luaL_Buffer buffer;
+    int i;
+    size_t size;
+    const uint8_t *data = (const uint8_t*) luaL_checklstring(L, 1, &size);
+    luaL_buffinit(L, &buffer);
+    for ( i = size / 3; i--; data += 3 ) {
+        bin_encode_base64_data(&buffer, data[0], data[1], data[2], 3);
+    }
+    switch ( size % 3 ) {
+        case 1: bin_encode_base64_data(&buffer, data[0], 0, 0, 1); break;
+        case 2: bin_encode_base64_data(&buffer, data[0], data[1], 0, 2); break;
+    }
+    luaL_pushresult(&buffer);
+    return 1;
+}
+
+static void bin_decode_base64_data( luaL_Buffer *buffer, int c1, int c2, int c3, int c4, int n ) {
+    char s[3];
+    uint32_t tuple = c4 + 64L * (c3 + 64L * (c2 + 64L * c1));
+    switch ( --n ) {
+        case 3: s[2] = tuple;
+        case 2: s[1] = (tuple >> 8);
+        case 1: s[0] = (tuple >> 16);
+    }
+    luaL_addlstring(buffer, s, n);
+}
+
+static int bin_decode_base64( lua_State *L ) {
+    luaL_Buffer buffer;
+    char t[4];
+    int n = 0, c;
+    const char *p;
+    const char *str = luaL_checkstring(L, 1);
+    luaL_buffinit(L, &buffer);
+    for ( ;; ) {
+        c = (int) *str++;
+        switch ( c ) {
+            default:
+                p = strchr(base64_code, c);
+                if ( p == NULL ) {
+                    return 0;
+                }
+                t[n++] = p - base64_code;
+                if ( n == 4 ) {
+                    bin_decode_base64_data(&buffer, t[0], t[1], t[2], t[3], 4);
+                    n = 0;
+                }
+                break;
+            case '=':
+                switch ( n ) {
+                    case 1: bin_decode_base64_data(&buffer, t[0], 0, 0, 0, 1); break;
+                    case 2: bin_decode_base64_data(&buffer, t[0], t[1], 0, 0, 2); break;
+                    case 3: bin_decode_base64_data(&buffer, t[0], t[1], t[2], 0, 3); break;
+                }
+            case 0:
+                luaL_pushresult(&buffer);
+                return 1;
+            case '\n': case '\r': case '\t': case ' ': case '\f': case '\b':
+                break;
+        }
+    }
+}
+
 static const luaL_Reg bin__functions[] = {
     {"adler32", bin_adler32},
     {"crc32", bin_crc32},
+    {"compress_zlib", bin_zlib_compress},
+    {"uncompress_zlib", bin_zlib_uncompress},
+    {"get_packed_size", bin_get_packed_size},
+    {"pack", bin_pack},
+    {"unpack", bin_unpack},
+    {"encode_base64", bin_encode_base64},
+    {"decode_base64", bin_decode_base64},
+    {NULL, NULL}
+};
+
+/*
+================================================================================
+
+                RANDOM NUMBER GENERATORS
+
+================================================================================
+*/
+static int push_random_number( lua_State *L, uint32_t base_rand ) {
+    lua_Number u, l;
+    lua_Number r = (lua_Number) base_rand / (lua_Number) 4294967296.0;
+    switch ( lua_gettop(L) ) {
+        case 1:
+            lua_pushnumber(L, r);
+            break;
+        case 2:
+            u = luaL_checknumber(L, 2);
+            luaL_argcheck(L, (lua_Number)1.0 <= u, 2, "interval is empty");
+            lua_pushnumber(L, (lua_Number)floor(r*u) + (lua_Number)(1.0));
+            break;
+        case 3:
+            l = luaL_checknumber(L, 2);
+            u = luaL_checknumber(L, 3);
+            luaL_argcheck(L, l <= u, 3, "interval is empty");
+            lua_pushnumber(L, (lua_Number)floor(r*(u-l+1)) + l);
+            break;
+        default:
+            return luaL_error(L, "wrong number of arguments");
+    }
+    return 1;
+}
+
+/*
+================================================================================
+
+                linear congruential generator (LCG)
+
+================================================================================
+*/
+static rand_lcg_t *to_rand_lcg( lua_State *L, const int idx ) {
+    return  (rand_lcg_t*) luaL_checkudata(L, idx, LEGATO_RAND_LCG);
+}
+
+static int rand_create_lcg( lua_State *L ) {
+    uint32_t X, a, c;
+    rand_lcg_t *lcg;
+    X = (uint32_t) luaL_optinteger(L, 1, 42); /* 42 is not a random number */
+    a = (uint32_t) luaL_optinteger(L, 2, 22695477);
+    c = (uint32_t) luaL_optinteger(L, 3, 1);
+    lcg = (rand_lcg_t*) push_data(L, LEGATO_RAND_LCG, sizeof(rand_lcg_t));
+    lcg->X = X;
+    lcg->a = a;
+    lcg->c = c;
+    return 1;
+}
+
+static int rand_lcg__tostring( lua_State *L ) {
+    lua_pushfstring(L, "%s: %p", LEGATO_RAND_LCG, to_rand_lcg(L, 1));
+    return 1;
+}
+
+static int rand_lcg_rand( lua_State *L ) {
+    rand_lcg_t *lcg = to_rand_lcg(L, 1);
+    lcg->X = ((lcg->X * lcg->a) + lcg->c) & 0xffffffff;
+    return push_random_number(L, lcg->X);
+}
+
+static const luaL_Reg rand_lcg__methods[] = {
+    {"__tostring", rand_lcg__tostring},
+    {"__call", rand_lcg_rand},
+    {"rand", rand_lcg_rand},
+    {NULL, NULL}
+};
+
+static const luaL_Reg rand__functions[] = {
+    {"create_lcg", rand_create_lcg},
     {NULL, NULL}
 };
 
@@ -4780,6 +5258,7 @@ static int luaopen_legato( lua_State *L ) {
     create_meta(L, LEGATO_ADDRESS, address__methods);
     create_meta(L, LEGATO_HOST, host__methods);
     create_meta(L, LEGATO_PEER, peer__methods);
+    create_meta(L, LEGATO_RAND_LCG, rand_lcg__methods);
     lua_newtable(L);
     luaL_newlib(L, core__functions);
     lua_setfield(L, -2, "core");
@@ -4791,6 +5270,8 @@ static int luaopen_legato( lua_State *L ) {
     lua_setfield(L, -2, "enet");
     luaL_newlib(L, bin__functions);
     lua_setfield(L, -2, "bin");
+    luaL_newlib(L, rand__functions);
+    lua_setfield(L, -2, "rand");
     return 1;
 }
 

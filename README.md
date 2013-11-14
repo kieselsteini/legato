@@ -75,11 +75,21 @@ Allegro 5 - Addons
 PhysicsFS
 ---------
 Nearly all functions are implemented.
+Manual is here: http://www.icculus.org/physfs/docs/html/
 
 enet (UDP networking)
 ---------------------
 Not functional at all. Only stubs implemented so far.
+Manual is here: http://enet.bespin.org/
 
+legato.core (some core functionality)
+-------------------------------------
+* get_version()
+* get_version_string()
+* load_script(filename)
+* encode_UTF8_codepoint(codepoint)
+* get_UTF8_length(string)
+* split_UTF8_string(string)
 
 How to use?
 ===========
