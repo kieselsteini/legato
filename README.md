@@ -79,7 +79,7 @@ Manual is here: http://www.icculus.org/physfs/docs/html/
 
 enet (UDP networking)
 ---------------------
-Not functional at all. Only stubs implemented so far.
+Implemented all core functions. It should be useable.
 Manual is here: http://enet.bespin.org/
 
 legato.core (some core functionality)
