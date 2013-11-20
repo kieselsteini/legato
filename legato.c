@@ -5268,7 +5268,8 @@ static int rand_create_mt( lua_State *L ) {
     s = (unsigned long) luaL_optinteger(L, 1, 42); /* again...42 is not a random number */
     o = (rand_mt_t*) push_data(L, LEGATO_RAND_MT, sizeof(rand_mt_t));
 
-    for ( o->mti = 1; o->mti < 624; ++o->mti ) {
+    o->mt[0] = s & 0xffffffffUL;
+    for ( o->mti = 1; o->mti < 624; o->mti++ ) {
         o->mt[o->mti] = (1812433253UL * (o->mt[o->mti-1] ^ (o->mt[o->mti-1] >> 30)) + o->mti);
         o->mt[o->mti] &= 0xffffffffUL;
     }
@@ -5281,19 +5282,19 @@ static int rand_mt__tostring( lua_State *L ) {
 }
 
 static int rand_mt_rand( lua_State *L ) {
+    static unsigned long mag01[2] = {0x0UL, 0x9908b0dfUL};
     unsigned long y;
-    unsigned long mag01[2] = {0x0UL, 0x9908b0dfUL};
     rand_mt_t *o = to_rand_mt(L, 1);
-    
+   
     if ( o->mti >= 624 ) {
         int kk;
         for ( kk = 0; kk < 624 - 397; ++kk ) {
             y = (o->mt[kk] & 0x80000000UL) | (o->mt[kk+1] & 0x7fffffffUL);
-            o->mt[kk] = o->mt[kk+624] ^ (y >> 1) ^ mag01[y & 0x1UL];
+            o->mt[kk] = o->mt[kk+397] ^ (y >> 1) ^ mag01[y & 0x1UL];
         }
         for ( ; kk < 624 - 1; ++kk ) {
             y = (o->mt[kk] & 0x80000000UL) | (o->mt[kk+1] & 0x7fffffffUL);
-            o->mt[kk] = o->mt[kk+(624 - 397)] ^ (y >> 1) ^ mag01[y & 0x1UL];
+            o->mt[kk] = o->mt[kk+(397- 624)] ^ (y >> 1) ^ mag01[y & 0x1UL];
         }
         y = (o->mt[624-1] & 0x80000000UL) | (o->mt[0] & 0x7fffffffUL);
         o->mt[624-1] = o->mt[397-1] ^ (y >> 1) ^ mag01[y & 0x1UL];
