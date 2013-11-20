@@ -38,7 +38,8 @@
  2013-11-20 - 0.2.1
     * added licenses.txt (use xxd -i to create licenses.h)
     * new function to get all licenses
-    * added Mersenne Twister pseudo random number generator 
+    * added Mersenne Twister pseudo random number generator
+    * try to mount executable file to / on startup
  2013-11-14 - 0.2.0
     * added zlib compression/decompression stuff
     * crc32/adler32 routines (zlib as well)
@@ -5393,6 +5394,7 @@ static void mount_data( void ) {
     static const char *extensions[] = {".dat", ".7z", ".zip", ".wad", ".hog", ".grp", NULL};
     int i;
     ALLEGRO_PATH *path = al_get_standard_path(ALLEGRO_EXENAME_PATH);
+    PHYSFS_mount(al_path_cstr(path, ALLEGRO_NATIVE_PATH_SEP), "/", 0); /* mount .EXE */
     for ( i = 0; extensions[i]; ++i ) {
         al_set_path_extension(path, extensions[i]);
         PHYSFS_mount(al_path_cstr(path, ALLEGRO_NATIVE_PATH_SEP), "/", 0);
