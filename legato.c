@@ -34,7 +34,11 @@
 
  Chanelog:
  ---------
- 
+
+ 2013-11-20 - 0.2.1
+    * added licenses.txt (use xxd -i to create licenses.h)
+    * new function to get all licenses
+    * added Mersenne Twister pseudo random number generator 
  2013-11-14 - 0.2.0
     * added zlib compression/decompression stuff
     * crc32/adler32 routines (zlib as well)
@@ -93,6 +97,8 @@
 #define LEGATO_DIRECT3D 0
 #endif /* ALLEGRO_WINDOWS */
 
+#include "licenses.h" /* include license text */
+
 /* #define DEBUG_OBJECT_LIFE */ /* activate to see object creation/destruction */
 
 #define NOT_IMPLEMENTED_MACRO luaL_error(L, "Error: not implemented yet!"); return 0;
@@ -142,6 +148,7 @@
 #define LEGATO_HOST "legato_host"
 #define LEGATO_PEER "legato_peer"
 #define LEGATO_RAND_LCG "legato_rand_lcg"
+#define LEGATO_RAND_MT "legato_rand_mt"
 
 /*
 ================================================================================
@@ -165,6 +172,11 @@ typedef struct object_t {
 typedef struct rand_lgc_t {
     uint32_t        X, a, c;
 } rand_lcg_t;
+
+typedef struct rand_mt_t {
+    unsigned long   mt[624];
+    int             mti;
+} rand_mt_t;
 
 /*
 ================================================================================
@@ -197,6 +209,7 @@ static ENetAddress *to_address( lua_State *L, const int idx );
 static ENetHost *to_host( lua_State *L, const int idx );
 static ENetPeer *to_peer( lua_State *L, const int idx );
 static rand_lcg_t *to_rand_lcg( lua_State *L, const int idx );
+static rand_mt_t *to_rand_mt( lua_State *L, const int idx );
 
 /*
 ================================================================================
@@ -742,6 +755,11 @@ static int core_split_UTF8_string( lua_State *L ) {
     }
     return 1;
 }
+
+static int core_get_licenses( lua_State *L ) {
+    lua_pushlstring(L, (const char*) licenses_txt, licenses_txt_len);
+    return 1;
+}
     
 static const luaL_Reg core__functions[] = {
     {"get_version", core_get_version},
@@ -750,6 +768,7 @@ static const luaL_Reg core__functions[] = {
     {"encode_UTF8_codepoint", core_encode_UTF8_codepoint},
     {"get_UTF8_length", core_get_UTF8_length},
     {"split_UTF8_string", core_split_UTF8_string},
+    {"get_licenses", core_get_licenses},
     {NULL, NULL}
 };
 
@@ -5223,10 +5242,82 @@ static const luaL_Reg rand_lcg__methods[] = {
     {NULL, NULL}
 };
 
-static const luaL_Reg rand__functions[] = {
-    {"create_lcg", rand_create_lcg},
+/*
+================================================================================
+
+                Mersenne Twister
+
+    Implementation based on: mt19937ar.c
+    A C-program for MT19937, with initialization improved 2002/1/26.
+    Coded by Takuji Nishimura and Makoto Matsumoto.
+    http://www.math.sci.hiroshima-u.ac.jp/~m-mat/MT/emt.html
+
+================================================================================
+*/
+static rand_mt_t *to_rand_mt( lua_State *L, const int idx ) {
+    return (rand_mt_t*) luaL_checkudata(L, idx, LEGATO_RAND_MT);
+}
+
+static int rand_create_mt( lua_State *L ) {
+    rand_mt_t *o;
+    unsigned long s;
+    
+    s = (unsigned long) luaL_optinteger(L, 1, 42); /* again...42 is not a random number */
+    o = (rand_mt_t*) push_data(L, LEGATO_RAND_MT, sizeof(rand_mt_t));
+
+    for ( o->mti = 1; o->mti < 624; ++o->mti ) {
+        o->mt[o->mti] = (1812433253UL * (o->mt[o->mti-1] ^ (o->mt[o->mti-1] >> 30)) + o->mti);
+        o->mt[o->mti] &= 0xffffffffUL;
+    }
+    return 1;
+}
+
+static int rand_mt__tostring( lua_State *L ) {
+    lua_pushfstring(L, "%s: %p", LEGATO_RAND_MT, to_rand_mt(L, 1));
+    return 1;
+}
+
+static int rand_mt_rand( lua_State *L ) {
+    unsigned long y;
+    unsigned long mag01[2] = {0x0UL, 0x9908b0dfUL};
+    rand_mt_t *o = to_rand_mt(L, 1);
+    
+    if ( o->mti >= 624 ) {
+        int kk;
+        for ( kk = 0; kk < 624 - 397; ++kk ) {
+            y = (o->mt[kk] & 0x80000000UL) | (o->mt[kk+1] & 0x7fffffffUL);
+            o->mt[kk] = o->mt[kk+624] ^ (y >> 1) ^ mag01[y & 0x1UL];
+        }
+        for ( ; kk < 624 - 1; ++kk ) {
+            y = (o->mt[kk] & 0x80000000UL) | (o->mt[kk+1] & 0x7fffffffUL);
+            o->mt[kk] = o->mt[kk+(624 - 397)] ^ (y >> 1) ^ mag01[y & 0x1UL];
+        }
+        y = (o->mt[624-1] & 0x80000000UL) | (o->mt[0] & 0x7fffffffUL);
+        o->mt[624-1] = o->mt[397-1] ^ (y >> 1) ^ mag01[y & 0x1UL];
+        o->mti = 0;
+    }
+    y = o->mt[o->mti++];
+    y ^= (y >> 11);
+    y ^= (y << 7) & 0x9d2c5680UL;
+    y ^= (y << 15) & 0xefc60000UL;
+    y ^= (y >> 18);
+
+    return push_random_number(L, (uint32_t) y);
+}
+
+static const luaL_Reg rand_mt__methods[] = {
+    {"__tostring", rand_mt__tostring},
+    {"__call", rand_mt_rand},
+    {"rand", rand_mt_rand},
     {NULL, NULL}
 };
+
+static const luaL_Reg rand__functions[] = {
+    {"create_lcg", rand_create_lcg},
+    {"create_mt", rand_create_mt},
+    {NULL, NULL}
+};
+
 
 /*
 ================================================================================
@@ -5259,6 +5350,7 @@ static int luaopen_legato( lua_State *L ) {
     create_meta(L, LEGATO_HOST, host__methods);
     create_meta(L, LEGATO_PEER, peer__methods);
     create_meta(L, LEGATO_RAND_LCG, rand_lcg__methods);
+    create_meta(L, LEGATO_RAND_MT, rand_mt__methods);
     lua_newtable(L);
     luaL_newlib(L, core__functions);
     lua_setfield(L, -2, "core");
