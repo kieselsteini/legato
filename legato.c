@@ -72,6 +72,10 @@
 #include <lauxlib.h>
 #include <lualib.h>
 
+#include <physfs.h>
+#include <zlib.h>
+#include <enet/enet.h>
+
 #include <allegro5/allegro.h>
 #include <allegro5/allegro_physfs.h>
 #include <allegro5/allegro_image.h>
@@ -81,10 +85,6 @@
 #include <allegro5/allegro_audio.h>
 #include <allegro5/allegro_acodec.h>
 #include <allegro5/allegro_color.h>
-
-#include <physfs.h>
-#include <enet/enet.h>
-#include <zlib.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -5451,4 +5451,3 @@ int main( int argc, char *argv[] ) {
 
     return EXIT_SUCCESS;
 }
-
