@@ -94,6 +94,7 @@
 
 #ifdef ALLEGRO_WINDOWS
 #include <allegro5/allegro_direct3d.h>
+#include <allegro5/allegro_native_dialog.h>
 #define LEGATO_DIRECT3D ALLEGRO_DIRECT3D
 #else
 #define LEGATO_DIRECT3D 0
@@ -454,6 +455,23 @@ static const mapping_t enet_packet_flag_mapping[] = {
     {"sent", ENET_PACKET_FLAG_SENT},
     {NULL, 0}
 };
+
+/*
+================================================================================
+
+				GENERAL ERROR MESSAGE DISPLAY
+
+================================================================================
+*/
+#ifdef ALLEGRO_WINDOWS
+static void show_error( const char *message ) {
+	al_show_native_message_box(NULL, "Legato Runtime", "Fatal error:", message, NULL, ALLEGRO_MESSAGEBOX_ERROR);
+}
+#else
+static void show_error( const char *message ) {
+	fprintf(stderr, "%s\n", message);
+}
+#endif /* ALLEGRO_WINDOWS */
 
 /*
 ================================================================================
@@ -5434,8 +5452,7 @@ int main( int argc, char *argv[] ) {
     lua_remove(L, -2);
     lua_pushcfunction(L, boot_legato);
     if ( lua_pcall(L, 0, 0, -2) != LUA_OK ) {
-        /* there might be room for improvement... */
-        fprintf(stderr, "%s\n", lua_tostring(L, -1));
+		show_error(lua_tostring(L, -1));
     }
     lua_close(L);
 
