@@ -38,6 +38,7 @@
  2013-11-20 - 0.2.1
     * added licenses.txt (use xxd -i to create licenses.h)
     * new function to get all licenses
+    * push now right display/timer object on events
     * added Mersenne Twister pseudo random number generator
     * try to mount executable file to / on startup
  2013-11-14 - 0.2.0
@@ -610,26 +611,6 @@ static int push_enum_name( lua_State *L, const int value, const mapping_t mappin
     return 0;
 }
 
-static void set_str( lua_State *L, const char *key, const char *value ) {
-    lua_pushstring(L, value);
-    lua_setfield(L, -2, key);
-}
-
-static void set_int( lua_State *L, const char *key, const lua_Integer value ) {
-    lua_pushinteger(L, value);
-    lua_setfield(L, -2, key);
-}
-
-static void set_ptr( lua_State *L, const char *key, const void *ptr ) {
-    lua_pushlightuserdata(L, (void*) ptr);
-    lua_setfield(L, -2, key);
-}
-
-static void set_bool( lua_State *L, const char *key, const int value ) {
-    lua_pushboolean(L, value);
-    lua_setfield(L, -2, key);
-}
-
 /*
 static int push_equal_check( lua_State *L, const char *name ) {
     object_t *ob1, *ob2;
@@ -674,6 +655,27 @@ static int push_object_by_pointer_with_dependency( lua_State *L, const char *nam
 static int push_object_by_pointer( lua_State *L, const char *name, void *ptr ) {
     return push_object_by_pointer_with_dependency(L, name, ptr, 0);
 }
+
+static void set_str( lua_State *L, const char *key, const char *value ) {
+    lua_pushstring(L, value);
+    lua_setfield(L, -2, key);
+}
+
+static void set_int( lua_State *L, const char *key, const lua_Integer value ) {
+    lua_pushinteger(L, value);
+    lua_setfield(L, -2, key);
+}
+
+static void set_ptr( lua_State *L, const char *key, const char *name, const void *ptr ) {
+    push_object_by_pointer(L, name, (void*) ptr);
+    lua_setfield(L, -2, key);
+}
+
+static void set_bool( lua_State *L, const char *key, const int value ) {
+    lua_pushboolean(L, value);
+    lua_setfield(L, -2, key);
+}
+
 
 /*
 ================================================================================
@@ -1434,19 +1436,19 @@ static int push_event( lua_State *L, ALLEGRO_EVENT *event ) {
         case ALLEGRO_EVENT_KEY_DOWN:
             set_str(L, "type", "key_down");
             set_int(L, "keycode", event->keyboard.keycode);
-            set_ptr(L, "display", event->keyboard.display);
+            set_ptr(L, "display", LEGATO_DISPLAY, event->keyboard.display);
             return 1;
         case ALLEGRO_EVENT_KEY_UP:
             set_str(L, "type", "key_up");
             set_int(L, "keycode", event->keyboard.keycode);
-            set_ptr(L, "display", event->keyboard.display);
+            set_ptr(L, "display", LEGATO_DISPLAY, event->keyboard.display);
             return 1;
         case ALLEGRO_EVENT_KEY_CHAR:
             set_str(L, "type", "key_char");
             set_int(L, "keycode", event->keyboard.keycode);
             set_int(L, "unichar", event->keyboard.unichar);
             set_bool(L, "repeat", event->keyboard.repeat);
-            set_ptr(L, "display", event->keyboard.display);
+            set_ptr(L, "display", LEGATO_DISPLAY, event->keyboard.display);
             return 1;
         case ALLEGRO_EVENT_MOUSE_AXES:
             set_str(L, "type", "mouse_axes");
@@ -1458,7 +1460,7 @@ static int push_event( lua_State *L, ALLEGRO_EVENT *event ) {
             set_int(L, "dy", event->mouse.dy);
             set_int(L, "dz", event->mouse.dz);
             set_int(L, "dw", event->mouse.dw);
-            set_ptr(L, "display", event->mouse.display);
+            set_ptr(L, "display", LEGATO_DISPLAY, event->mouse.display);
             return 1;
         case ALLEGRO_EVENT_MOUSE_BUTTON_DOWN:
             set_str(L, "type", "mouse_button_down");
@@ -1467,7 +1469,7 @@ static int push_event( lua_State *L, ALLEGRO_EVENT *event ) {
             set_int(L, "z", event->mouse.z);
             set_int(L, "w", event->mouse.w);
             set_int(L, "button", event->mouse.button);
-            set_ptr(L, "display", event->mouse.display);
+            set_ptr(L, "display", LEGATO_DISPLAY, event->mouse.display);
             return 1;
         case ALLEGRO_EVENT_MOUSE_BUTTON_UP:
             set_str(L, "type", "mouse_button_down");
@@ -1476,7 +1478,7 @@ static int push_event( lua_State *L, ALLEGRO_EVENT *event ) {
             set_int(L, "z", event->mouse.z);
             set_int(L, "w", event->mouse.w);
             set_int(L, "button", event->mouse.button);
-            set_ptr(L, "display", event->mouse.display);
+            set_ptr(L, "display", LEGATO_DISPLAY, event->mouse.display);
             return 1;
         case ALLEGRO_EVENT_MOUSE_WARPED:
             set_str(L, "type", "mouse_warped");
@@ -1487,7 +1489,7 @@ static int push_event( lua_State *L, ALLEGRO_EVENT *event ) {
             set_int(L, "y", event->mouse.y);
             set_int(L, "z", event->mouse.z);
             set_int(L, "w", event->mouse.w);
-            set_ptr(L, "display", event->mouse.display);
+            set_ptr(L, "display", LEGATO_DISPLAY, event->mouse.display);
             return 1;
         case ALLEGRO_EVENT_MOUSE_LEAVE_DISPLAY:
             set_str(L, "type", "mouse_leave_display");
@@ -1495,16 +1497,16 @@ static int push_event( lua_State *L, ALLEGRO_EVENT *event ) {
             set_int(L, "y", event->mouse.y);
             set_int(L, "z", event->mouse.z);
             set_int(L, "w", event->mouse.w);
-            set_ptr(L, "display", event->mouse.display);
+            set_ptr(L, "display", LEGATO_DISPLAY, event->mouse.display);
             return 1;
         case ALLEGRO_EVENT_TIMER:
             set_str(L, "type", "timer");
             set_int(L, "count", event->timer.count);
-            set_ptr(L, "timer", event->timer.source);
+            set_ptr(L, "timer", LEGATO_TIMER, event->timer.source);
             return 1;
         case ALLEGRO_EVENT_DISPLAY_EXPOSE:
             set_str(L, "type", "display_expose");
-            set_ptr(L, "display", event->display.source);
+            set_ptr(L, "display", LEGATO_DISPLAY, event->display.source);
             set_int(L, "x", event->display.x);
             set_int(L, "y", event->display.y);
             set_int(L, "width", event->display.width);
@@ -1512,7 +1514,7 @@ static int push_event( lua_State *L, ALLEGRO_EVENT *event ) {
             return 1;
         case ALLEGRO_EVENT_DISPLAY_RESIZE:
             set_str(L, "type", "display_resize");
-            set_ptr(L, "display", event->display.source);
+            set_ptr(L, "display", LEGATO_DISPLAY, event->display.source);
             set_int(L, "x", event->display.x);
             set_int(L, "y", event->display.y);
             set_int(L, "width", event->display.width);
@@ -1520,27 +1522,27 @@ static int push_event( lua_State *L, ALLEGRO_EVENT *event ) {
             return 1;
         case ALLEGRO_EVENT_DISPLAY_CLOSE:
             set_str(L, "type", "display_close");
-            set_ptr(L, "display", event->display.source);
+            set_ptr(L, "display", LEGATO_DISPLAY, event->display.source);
             return 1;
         case ALLEGRO_EVENT_DISPLAY_LOST:
             set_str(L, "type", "display_lost");
-            set_ptr(L, "display", event->display.source);
+            set_ptr(L, "display", LEGATO_DISPLAY, event->display.source);
             return 1;
         case ALLEGRO_EVENT_DISPLAY_FOUND:
             set_str(L, "type", "display_found");
-            set_ptr(L, "display", event->display.source);
+            set_ptr(L, "display", LEGATO_DISPLAY, event->display.source);
             return 1;
         case ALLEGRO_EVENT_DISPLAY_SWITCH_OUT:
             set_str(L, "type", "display_switch_out");
-            set_ptr(L, "display", event->display.source);
+            set_ptr(L, "display", LEGATO_DISPLAY, event->display.source);
             return 1;
         case ALLEGRO_EVENT_DISPLAY_SWITCH_IN:
             set_str(L, "type", "display_switch_in");
-            set_ptr(L, "display", event->display.source);
+            set_ptr(L, "display", LEGATO_DISPLAY, event->display.source);
             return 1;
         case ALLEGRO_EVENT_DISPLAY_ORIENTATION:
             set_str(L, "type", "display_orientation");
-            set_ptr(L, "display", event->display.source);
+            set_ptr(L, "display", LEGATO_DISPLAY, event->display.source);
             switch ( event->display.orientation ) {
                 case ALLEGRO_DISPLAY_ORIENTATION_0_DEGREES:
                     lua_pushliteral(L, "0"); break;
