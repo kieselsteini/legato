@@ -459,17 +459,17 @@ static const mapping_t enet_packet_flag_mapping[] = {
 /*
 ================================================================================
 
-				GENERAL ERROR MESSAGE DISPLAY
+                GENERAL ERROR MESSAGE DISPLAY
 
 ================================================================================
 */
 #ifdef ALLEGRO_WINDOWS
 static void show_error( const char *message ) {
-	al_show_native_message_box(NULL, "Legato Runtime", "Fatal error:", message, NULL, ALLEGRO_MESSAGEBOX_ERROR);
+    al_show_native_message_box(NULL, "Legato Runtime", "Fatal error:", message, NULL, ALLEGRO_MESSAGEBOX_ERROR);
 }
 #else
 static void show_error( const char *message ) {
-	fprintf(stderr, "%s\n", message);
+    fprintf(stderr, "Legato Runtime (%d.%d.%d)\nFatal error:\n%s\n", LEGATO_VERSION_MAJOR, LEGATO_VERSION_MINOR, LEGATO_VERSION_PATCH, message);
 }
 #endif /* ALLEGRO_WINDOWS */
 
@@ -710,7 +710,7 @@ static int core_get_version( lua_State *L ) {
 }
 
 static int core_get_version_string( lua_State *L ) {
-    lua_pushfstring(L, "Legato Framework (%d.%d.%d) - written by Sebastian Steinhauer",
+    lua_pushfstring(L, "Legato Runtime (%d.%d.%d) - written by Sebastian Steinhauer",
             LEGATO_VERSION_MAJOR, LEGATO_VERSION_MINOR, LEGATO_VERSION_PATCH);
     return 1;
 }
@@ -5452,7 +5452,7 @@ int main( int argc, char *argv[] ) {
     lua_remove(L, -2);
     lua_pushcfunction(L, boot_legato);
     if ( lua_pcall(L, 0, 0, -2) != LUA_OK ) {
-		show_error(lua_tostring(L, -1));
+        show_error(lua_tostring(L, -1));
     }
     lua_close(L);
 
