@@ -1432,15 +1432,18 @@ static int lg_destroy_event_queue( lua_State *L ) {
 }
 
 static ALLEGRO_EVENT_SOURCE *get_event_source( lua_State *L ) {
+    static const char *options[] = {"keyboard", "mouse", "joystick", NULL};
     ALLEGRO_EVENT_SOURCE *source = NULL;
     if ( luaL_testudata(L, 2, LEGATO_DISPLAY) ) {
         source = al_get_display_event_source(to_display(L, 2));
-    } else if ( luaL_testudata(L, 2, LEGATO_KEYBOARD_STATE) ) {
-        source = al_get_keyboard_event_source();
-    } else if ( luaL_testudata(L, 2, LEGATO_MOUSE_STATE) ) {
-        source = al_get_mouse_event_source();
     } else if ( luaL_testudata(L, 2, LEGATO_TIMER) ) {
         source = al_get_timer_event_source(to_timer(L, 2));
+    } else if ( lua_type(L, 2) == LUA_TSTRING ) {
+        switch ( luaL_checkoption(L, 2, NULL, options) ) {
+            case 0: source = al_get_keyboard_event_source(); break;
+            case 1: source = al_get_mouse_event_source(); break;
+            case 2: source = al_get_joystick_event_source(); break;
+        }
     }
     if ( source ) {
         return source;
@@ -1697,6 +1700,11 @@ static int lg_get_display_modes( lua_State *L ) {
 
 ================================================================================
 */
+static int lg_is_joystick_installed( lua_State *L ) {
+    lua_pushboolean(L, al_is_joystick_installed());
+    return 1;
+}
+
 static int lg_reconfigure_joysticks( lua_State *L ) {
     lua_pushboolean(L, al_reconfigure_joysticks());
     return 1;
@@ -3156,6 +3164,7 @@ static const luaL_Reg lg__functions[] = {
 
     {"get_display_modes", lg_get_display_modes},
 
+    {"is_joystick_installed", lg_is_joystick_installed},
     {"reconfigure_joysticks", lg_reconfigure_joysticks},
     {"get_num_joysticks", lg_get_num_joysticks},
     {"get_joystick", lg_get_joystick},
