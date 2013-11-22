@@ -35,9 +35,10 @@
  Chanelog:
  ---------
 
- 2013-11-22 - 0.2.2
+ 2013-11-22 - 0.3.0
     * implemented joystick routines
     * implemented joystick events
+    * changed style of event source registration/unregistration
  2013-11-20 - 0.2.1
     * added licenses.txt (use xxd -i to create licenses.h)
     * new function to get all licenses
@@ -110,8 +111,8 @@
 #define NOT_IMPLEMENTED_MACRO luaL_error(L, "Error: not implemented yet!"); return 0;
 
 #define LEGATO_VERSION_MAJOR    0
-#define LEGATO_VERSION_MINOR    2
-#define LEGATO_VERSION_PATCH    2
+#define LEGATO_VERSION_MINOR    3
+#define LEGATO_VERSION_PATCH    0
 
 #define LEGATO_LITTLE_ENDIAN    0
 #define LEGATO_BIG_ENDIAN       1
