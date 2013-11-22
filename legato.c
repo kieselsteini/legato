@@ -35,6 +35,9 @@
  Chanelog:
  ---------
 
+ 2013-11-22 - 0.2.2
+    * implemented joystick routines
+    * implemented joystick events
  2013-11-20 - 0.2.1
     * added licenses.txt (use xxd -i to create licenses.h)
     * new function to get all licenses
@@ -108,7 +111,7 @@
 
 #define LEGATO_VERSION_MAJOR    0
 #define LEGATO_VERSION_MINOR    2
-#define LEGATO_VERSION_PATCH    1
+#define LEGATO_VERSION_PATCH    2
 
 #define LEGATO_LITTLE_ENDIAN    0
 #define LEGATO_BIG_ENDIAN       1
@@ -139,6 +142,8 @@
 #define LEGATO_STATE "legato_state"
 #define LEGATO_TIMER "legato_timer"
 #define LEGATO_TRANSFORM "legato_transform"
+#define LEGATO_JOYSTICK "legato_joystick"
+#define LEGATO_JOYSTICK_STATE "legato_joystick_state"
 #define LEGATO_VOICE "legato_voice"
 #define LEGATO_MIXER "legato_mixer"
 #define LEGATO_AUDIO_SAMPLE "legato_audio_sample"
@@ -200,6 +205,8 @@ static ALLEGRO_PATH *to_path( lua_State *L, const int idx );
 static ALLEGRO_STATE *to_state( lua_State *L, const int idx );
 static ALLEGRO_TIMER *to_timer( lua_State *L, const int idx );
 static ALLEGRO_TRANSFORM *to_transform( lua_State *L, const int idx );
+static ALLEGRO_JOYSTICK *to_joystick( lua_State *L, const int idx );
+static ALLEGRO_JOYSTICK_STATE *to_joystick_state( lua_State *L, const int idx );
 static ALLEGRO_VOICE *to_voice( lua_State *L, const int idx );
 static ALLEGRO_MIXER *to_mixer( lua_State *L, const int idx );
 static ALLEGRO_SAMPLE *to_audio_sample( lua_State *L, const int idx );
@@ -359,6 +366,12 @@ static const mapping_t state_flag_mapping[] = {
     {"bitmap", ALLEGRO_STATE_BITMAP},
     {"target_bitmap", ALLEGRO_STATE_TARGET_BITMAP},
     {"all", ALLEGRO_STATE_ALL},
+    {NULL, 0}
+};
+
+static const mapping_t joyflags_mapping[] = {
+    {"digital", ALLEGRO_JOYFLAG_DIGITAL},
+    {"analogue", ALLEGRO_JOYFLAG_ANALOGUE},
     {NULL, 0}
 };
 
@@ -694,6 +707,10 @@ static void set_bool( lua_State *L, const char *key, const int value ) {
     lua_setfield(L, -2, key);
 }
 
+static void set_float( lua_State *L, const char *key, const float value ) {
+    lua_pushnumber(L, value);
+    lua_setfield(L, -2, key);
+}
 
 /*
 ================================================================================
@@ -1451,6 +1468,26 @@ static int lg_is_event_queue_empty( lua_State *L ) {
 static int push_event( lua_State *L, ALLEGRO_EVENT *event ) {
     lua_createtable(L, 0, 10); /* create big table to avoid many rehashed */
     switch ( event->type ) {
+        case ALLEGRO_EVENT_JOYSTICK_AXIS:
+            set_str(L, "type", "joystick_axes");
+            set_ptr(L, "id", LEGATO_JOYSTICK, event->joystick.id);
+            set_int(L, "stick", event->joystick.stick);
+            set_int(L, "axis", event->joystick.axis);
+            set_float(L, "pos", event->joystick.pos);
+            return 1;
+        case ALLEGRO_EVENT_JOYSTICK_BUTTON_DOWN:
+            set_str(L, "type", "joystick_button_down");
+            set_ptr(L, "id", LEGATO_JOYSTICK, event->joystick.id);
+            set_int(L, "button", event->joystick.button);
+            return 1;
+        case ALLEGRO_EVENT_JOYSTICK_BUTTON_UP:
+            set_str(L, "type", "joystick_button_up");
+            set_ptr(L, "id", LEGATO_JOYSTICK, event->joystick.id);
+            set_int(L, "button", event->joystick.button);
+            return 1;
+        case ALLEGRO_EVENT_JOYSTICK_CONFIGURATION:
+            set_str(L, "type", "joystick_configuration");
+            return 1;
         case ALLEGRO_EVENT_KEY_DOWN:
             set_str(L, "type", "key_down");
             set_int(L, "keycode", event->keyboard.keycode);
@@ -1651,6 +1688,83 @@ static int lg_get_display_modes( lua_State *L ) {
         lua_rawseti(L, -2, i + 1);
     }
     return 1;
+}
+
+/*
+================================================================================
+
+                Joystick
+
+================================================================================
+*/
+static int lg_reconfigure_joysticks( lua_State *L ) {
+    lua_pushboolean(L, al_reconfigure_joysticks());
+    return 1;
+}
+
+static int lg_get_num_joysticks( lua_State *L ) {
+    lua_pushinteger(L, al_get_num_joysticks());
+    return 1;
+}
+
+static int lg_get_joystick( lua_State *L ) {
+    ALLEGRO_JOYSTICK *joystick = al_get_joystick(luaL_checkint(L, 1));
+    if ( joystick ) {
+        return push_object_by_pointer(L, LEGATO_JOYSTICK, joystick);
+    }
+    return 0;
+}
+
+static int lg_release_joystick( lua_State *L ) {
+    NOT_IMPLEMENTED_MACRO;
+}
+
+static int lg_get_joystick_active( lua_State *L ) {
+    lua_pushboolean(L, al_get_joystick_active(to_joystick(L, 1)));
+    return 1;
+}
+
+static int lg_get_joystick_name( lua_State *L ) {
+    lua_pushstring(L, al_get_joystick_name(to_joystick(L, 1)));
+    return 1;
+}
+
+static int lg_get_joystick_stick_name( lua_State *L ) {
+    lua_pushstring(L, al_get_joystick_stick_name(to_joystick(L, 1), luaL_checkint(L, 2)));
+    return 1;
+}
+
+static int lg_get_joystick_axis_name( lua_State *L ) {
+    lua_pushstring(L, al_get_joystick_axis_name(to_joystick(L, 1), luaL_checkint(L, 2), luaL_checkint(L, 3)));
+    return 1;
+}
+
+static int lg_get_joystick_button_name( lua_State *L ) {
+    lua_pushstring(L, al_get_joystick_button_name(to_joystick(L, 1), luaL_checkint(L, 2)));
+    return 1;
+}
+
+static int lg_get_joystick_stick_flags( lua_State *L ) {
+    NOT_IMPLEMENTED_MACRO;
+}
+
+static int lg_get_joystick_num_sticks( lua_State *L ) {
+    lua_pushinteger(L, al_get_joystick_num_sticks(to_joystick(L, 1)));
+    return 1;
+}
+
+static int lg_get_joystick_num_axes( lua_State *L ) {
+    lua_pushinteger(L, al_get_joystick_num_axes(to_joystick(L, 1), luaL_checkint(L, 2)));
+    return 1;
+}
+
+static int lg_get_joystick_num_buttons( lua_State *L ) {
+    lua_pushinteger(L, al_get_joystick_num_buttons(to_joystick(L, 1)));
+    return 1;
+}
+
+static int lg_get_joystick_state( lua_State *L ) {
+    NOT_IMPLEMENTED_MACRO;
 }
 
 /*
@@ -3040,6 +3154,21 @@ static const luaL_Reg lg__functions[] = {
 
     {"get_display_modes", lg_get_display_modes},
 
+    {"reconfigure_joysticks", lg_reconfigure_joysticks},
+    {"get_num_joysticks", lg_get_num_joysticks},
+    {"get_joystick", lg_get_joystick},
+    {"release_joystick", lg_release_joystick},
+    {"get_joystick_active", lg_get_joystick_active},
+    {"get_joystick_name", lg_get_joystick_name},
+    {"get_joystick_stick_name", lg_get_joystick_stick_name},
+    {"get_joystick_axis_name", lg_get_joystick_axis_name},
+    {"get_joystick_button_name", lg_get_joystick_button_name},
+    {"get_joystick_stick_flags", lg_get_joystick_stick_flags},
+    {"get_joystick_num_sticks", lg_get_joystick_num_sticks},
+    {"get_joystick_num_axes", lg_get_joystick_num_axes},
+    {"get_joystick_num_buttons", lg_get_joystick_num_buttons},
+    {"get_joystick_state", lg_get_joystick_state},
+
     {"map_rgb", lg_map_rgb},
     {"map_rgb_f", lg_map_rgb_f},
     {"unmap_rgb", lg_unmap_rgb},
@@ -3548,6 +3677,58 @@ static const luaL_Reg event_queue__methods[] = {
     {"wait_for_event", lg_wait_for_event},
     {"wait_for_event_timed", lg_wait_for_event_timed},
     {"wait_for_event_until", lg_wait_for_event_until},
+    {NULL, NULL}
+};
+
+/*
+================================================================================
+
+                Joystick
+
+================================================================================
+*/
+static ALLEGRO_JOYSTICK *to_joystick( lua_State *L, const int idx ) {
+    return NULL;
+}
+
+static int joystick__tostring( lua_State *L ) {
+    lua_pushfstring(L, "%s: %p", LEGATO_JOYSTICK, to_joystick(L, 1));
+    return 1;
+}
+
+static const luaL_Reg joystick__methods[] = {
+    {"__tostring", joystick__tostring},
+    {"get_active", lg_get_joystick_active},
+    {"get_name", lg_get_joystick_name},
+    {"get_stick_name", lg_get_joystick_stick_name},
+    {"get_axis_name", lg_get_joystick_axis_name},
+    {"get_button_name", lg_get_joystick_button_name},
+    {"get_stick_flags", lg_get_joystick_stick_flags},
+    {"get_num_sticks", lg_get_joystick_num_sticks},
+    {"get_num_axes", lg_get_joystick_num_axes},
+    {"get_num_buttons", lg_get_joystick_num_buttons},
+    {"get_state", lg_get_joystick_state},
+    {NULL, NULL}
+};
+
+/*
+================================================================================
+
+                Joystick State
+
+================================================================================
+*/
+static ALLEGRO_JOYSTICK_STATE *to_joystick_state( lua_State *L, const int idx ) {
+    return NULL;
+}
+
+static int joystick_state__tostring( lua_State *L ) {
+    lua_pushfstring(L, "%s: %p", LEGATO_JOYSTICK_STATE, to_joystick_state(L, 1));
+    return 1;
+}
+
+static const luaL_Reg joystick_state__methods[] = {
+    {"__tostring", joystick_state__tostring},
     {NULL, NULL}
 };
 
@@ -5433,6 +5614,7 @@ int main( int argc, char *argv[] ) {
     al_init();
     al_install_keyboard();
     al_install_mouse();
+    al_install_joystick();
     al_install_audio();
     al_init_image_addon();
     al_init_font_addon();
