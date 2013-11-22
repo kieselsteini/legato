@@ -40,6 +40,7 @@
     * implemented joystick events
     * changed style of event source registration/unregistration
     * added keycode enums
+    * added number map
  2013-11-20 - 0.2.1
     * added licenses.txt (use xxd -i to create licenses.h)
     * new function to get all licenses
@@ -159,6 +160,7 @@
 #define LEGATO_PEER "legato_peer"
 #define LEGATO_RAND_LCG "legato_rand_lcg"
 #define LEGATO_RAND_MT "legato_rand_mt"
+#define LEGATO_NUMBER_MAP "legato_number_map"
 
 /*
 ================================================================================
@@ -187,6 +189,11 @@ typedef struct rand_mt_t {
     unsigned long   mt[624];
     int             mti;
 } rand_mt_t;
+
+typedef struct number_map_t {
+    int             width, height;
+    lua_Number      cells[1];
+} number_map_t;
 
 /*
 ================================================================================
@@ -222,6 +229,7 @@ static ENetHost *to_host( lua_State *L, const int idx );
 static ENetPeer *to_peer( lua_State *L, const int idx );
 static rand_lcg_t *to_rand_lcg( lua_State *L, const int idx );
 static rand_mt_t *to_rand_mt( lua_State *L, const int idx );
+static number_map_t *to_number_map( lua_State *L, const int idx );
 
 /*
 ================================================================================
@@ -5624,6 +5632,144 @@ static const luaL_Reg rand__functions[] = {
     {NULL, NULL}
 };
 
+/*
+================================================================================
+
+                UTILITY FUNCTIONS
+
+================================================================================
+*/
+static int util_create_number_map( lua_State *L ) {
+    int width, height, i;
+    number_map_t *map;
+    width = luaL_checkint(L, 1);
+    height = luaL_optint(L, 2, width);
+    map = (number_map_t*) push_data(L, LEGATO_NUMBER_MAP, (sizeof(int) * 2) + (sizeof(lua_Number) * width * height));
+    map->width = width;
+    map->height = height;
+    for ( i = 0; i < width * height; ++i ) {
+        map->cells[i] = 0.0;
+    }
+    return 1;
+}
+
+static const luaL_Reg util__functions[] = {
+    {"create_number_map", util_create_number_map},
+    {NULL, NULL}
+};
+
+/*
+================================================================================
+
+                Number Map
+
+================================================================================
+*/
+static number_map_t *to_number_map( lua_State *L, const int idx ) {
+    return (number_map_t*) luaL_checkudata(L, idx, LEGATO_NUMBER_MAP);
+}
+
+static int number_map__tostring( lua_State *L ) {
+    lua_pushfstring(L, "%s: %p", LEGATO_NUMBER_MAP, to_number_map(L, 1));
+    return 1;
+}
+
+static int number_map_get_size( lua_State *L ) {
+    number_map_t *map = to_number_map(L, 1);
+    lua_pushinteger(L, map->width);
+    lua_pushinteger(L, map->height);
+    return 2;
+}
+
+static int number_map_get_width( lua_State *L ) {
+    lua_pushinteger(L, (to_number_map(L, 1))->width);
+    return 1;
+}
+
+static int number_map_get_height( lua_State *L ) {
+    lua_pushinteger(L, (to_number_map(L, 1))->height);
+    return 1;
+}
+
+static int is_number_map_pos_valid(const number_map_t *map, const int x, const int y ) {
+    return x >= 1 && x <= map->width && y >= 1 && y <= map->height;
+}
+
+static int get_number_map_cell( const number_map_t *map, const int x, const int y ) {
+    if ( is_number_map_pos_valid(map, x, y) ) {
+        return (y - 1) * map->width + (x - 1);
+    } else {
+        return -1;
+    }
+}
+
+static int number_map_is_valid( lua_State *L ) {
+    lua_pushboolean(L, is_number_map_pos_valid(to_number_map(L, 1), luaL_checkint(L, 2), luaL_checkint(L, 3)));
+    return 1;
+}
+
+static int number_map_get( lua_State *L ) {
+    int cell;
+    number_map_t *map = to_number_map(L, 1);
+    cell = get_number_map_cell(map, luaL_checkint(L, 2), luaL_checkint(L, 3));
+    if ( cell >= 0 ) {
+        lua_pushnumber(L, map->cells[cell]);
+        return 1;
+    }
+    return 0;
+}
+
+static int number_map_set( lua_State *L ) {
+    int cell;
+    number_map_t *map = to_number_map(L, 1);
+    cell = get_number_map_cell(map, luaL_checkint(L, 2), luaL_checkint(L, 3));
+    if ( cell >= 0 ) {
+        map->cells[cell] = luaL_checknumber(L, 4);
+    }
+    return 0;
+}
+
+static int number_map_fill( lua_State *L ) {
+    int x, y, xl, yl, xh, yh, cell;
+    lua_Number value;
+    number_map_t *map = to_number_map(L, 1);
+    xl = luaL_checkint(L, 2); yl = luaL_checkint(L, 3);
+    xh = luaL_checkint(L, 4); yh = luaL_checkint(L, 5);
+    value = luaL_checknumber(L, 6);
+    for ( y = yl; y <= yh; ++y ) {
+        for ( x = xl; x <= xh; ++x ) {
+            cell = get_number_map_cell(map, x, y);
+            if ( cell >= 0 ) {
+                map->cells[cell] = value;
+            }
+        }
+    }
+    return 0;
+}
+
+static int number_map_clear( lua_State *L ) {
+    int i;
+    lua_Number value;
+    number_map_t *map = to_number_map(L, 1);
+    value = luaL_optnumber(L, 2, 0.0);
+    for ( i = 0; i < map->width * map->height; ++i ) {
+        map->cells[i] = value;
+    }
+    return 0;
+}
+
+static const luaL_Reg number_map__methods[] = {
+    {"__tostring", number_map__tostring},
+    {"get_size", number_map_get_size},
+    {"get_width", number_map_get_width},
+    {"get_height", number_map_get_height},
+    {"is_valid", number_map_is_valid},
+    {"get", number_map_get},
+    {"set", number_map_set},
+    {"fill", number_map_fill},
+    {"clear", number_map_clear},
+    {NULL, NULL}
+};
 
 /*
 ================================================================================
@@ -5659,6 +5805,7 @@ static int luaopen_legato( lua_State *L ) {
     create_meta(L, LEGATO_PEER, peer__methods);
     create_meta(L, LEGATO_RAND_LCG, rand_lcg__methods);
     create_meta(L, LEGATO_RAND_MT, rand_mt__methods);
+    create_meta(L, LEGATO_NUMBER_MAP, number_map__methods);
     lua_newtable(L);
     luaL_newlib(L, core__functions);
     lua_setfield(L, -2, "core");
@@ -5675,6 +5822,8 @@ static int luaopen_legato( lua_State *L ) {
     lua_setfield(L, -2, "bin");
     luaL_newlib(L, rand__functions);
     lua_setfield(L, -2, "rand");
+    luaL_newlib(L, util__functions);
+    lua_setfield(L, -2, "util");
     return 1;
 }
 
