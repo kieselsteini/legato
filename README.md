@@ -45,7 +45,7 @@ Allegro 5
 * Fullscreen modes    - implemented
 * Graphics            - implemented (bitmap locking is missing right now)
 * Joystick            - implemented
-* Keyboard            - implemented (Allegro 5 key symbols are missing)
+* Keyboard            - implemented
 * Memory              - not implemented (Lua uses a dynamic memory management -> makes no sense)
 * Monitor             - implemented (some bits missing)
 * Mouse               - implemented

@@ -39,6 +39,7 @@
     * implemented joystick routines
     * implemented joystick events
     * changed style of event source registration/unregistration
+    * added keycode enums
  2013-11-20 - 0.2.1
     * added licenses.txt (use xxd -i to create licenses.h)
     * new function to get all licenses
@@ -410,6 +411,63 @@ static const mapping_t mouse_cursor_mapping[] = {
     {NULL, 0}
 };
 
+static const mapping_t keycode_mapping[] = {
+    {"A", ALLEGRO_KEY_A}, {"B", ALLEGRO_KEY_B}, {"C", ALLEGRO_KEY_C}, {"D", ALLEGRO_KEY_D},
+    {"E", ALLEGRO_KEY_E}, {"F", ALLEGRO_KEY_F}, {"G", ALLEGRO_KEY_G}, {"H", ALLEGRO_KEY_H},
+    {"I", ALLEGRO_KEY_I}, {"J", ALLEGRO_KEY_J}, {"K", ALLEGRO_KEY_K}, {"L", ALLEGRO_KEY_L},
+    {"M", ALLEGRO_KEY_M}, {"N", ALLEGRO_KEY_N}, {"O", ALLEGRO_KEY_O}, {"P", ALLEGRO_KEY_P},
+    {"Q", ALLEGRO_KEY_Q}, {"R", ALLEGRO_KEY_R}, {"S", ALLEGRO_KEY_S}, {"T", ALLEGRO_KEY_T},
+    {"U", ALLEGRO_KEY_U}, {"V", ALLEGRO_KEY_V}, {"W", ALLEGRO_KEY_W}, {"X", ALLEGRO_KEY_X},
+    {"Y", ALLEGRO_KEY_Y}, {"Z", ALLEGRO_KEY_Z},
+    {"0", ALLEGRO_KEY_0}, {"1", ALLEGRO_KEY_1}, {"2", ALLEGRO_KEY_2}, {"3", ALLEGRO_KEY_3},
+    {"4", ALLEGRO_KEY_4}, {"5", ALLEGRO_KEY_5}, {"6", ALLEGRO_KEY_6}, {"7", ALLEGRO_KEY_7},
+    {"8", ALLEGRO_KEY_8}, {"9", ALLEGRO_KEY_9},
+    {"F1", ALLEGRO_KEY_F1}, {"F2", ALLEGRO_KEY_F2}, {"F3", ALLEGRO_KEY_F3}, {"F4", ALLEGRO_KEY_F4},
+    {"F5", ALLEGRO_KEY_F5}, {"F6", ALLEGRO_KEY_F6}, {"F7", ALLEGRO_KEY_F7}, {"F8", ALLEGRO_KEY_F8},
+    {"F9", ALLEGRO_KEY_F9}, {"F10", ALLEGRO_KEY_F10}, {"F11", ALLEGRO_KEY_F11}, {"F12", ALLEGRO_KEY_F12},
+    {"ESCAPE", ALLEGRO_KEY_ESCAPE}, {"TILDE", ALLEGRO_KEY_TILDE}, {"EQUALS", ALLEGRO_KEY_EQUALS},
+    {"BACKSAPCE", ALLEGRO_KEY_BACKSPACE}, {"TAB", ALLEGRO_KEY_TAB}, {"OPENBRACE", ALLEGRO_KEY_OPENBRACE},
+    {"CLOSEBRACE", ALLEGRO_KEY_CLOSEBRACE}, {"ENTER", ALLEGRO_KEY_ENTER}, {"SEMICOLON", ALLEGRO_KEY_SEMICOLON},
+    {"QUOTE", ALLEGRO_KEY_QUOTE}, {"BACKSLASH", ALLEGRO_KEY_BACKSLASH}, {"BACKSLASH2", ALLEGRO_KEY_BACKSLASH2},
+    {"COMMA", ALLEGRO_KEY_COMMA}, {"FULLSTOP", ALLEGRO_KEY_FULLSTOP}, {"SLASH", ALLEGRO_KEY_SLASH},
+    {"SPACE", ALLEGRO_KEY_SPACE}, {"INSERT", ALLEGRO_KEY_INSERT}, {"DELETE", ALLEGRO_KEY_DELETE},
+    {"HOME", ALLEGRO_KEY_HOME}, {"END", ALLEGRO_KEY_END}, {"PGUP", ALLEGRO_KEY_PGUP},
+    {"PGDN", ALLEGRO_KEY_PGDN}, {"LEFT", ALLEGRO_KEY_LEFT}, {"RIGHT", ALLEGRO_KEY_RIGHT},
+    {"UP", ALLEGRO_KEY_UP}, {"DOWN", ALLEGRO_KEY_DOWN}, {"PAD_SLASH", ALLEGRO_KEY_PAD_SLASH},
+    {"PAD_ASTERISK", ALLEGRO_KEY_PAD_ASTERISK}, {"PAD_MINUS", ALLEGRO_KEY_PAD_MINUS},
+    {"PAD_PLUS", ALLEGRO_KEY_PAD_PLUS}, {"PAD_DELETE", ALLEGRO_KEY_PAD_DELETE}, {"PAD_ENTER", ALLEGRO_KEY_PAD_ENTER},
+    {"PRINTSCREEN", ALLEGRO_KEY_PRINTSCREEN}, {"PAUSE", ALLEGRO_KEY_PAUSE}, {"ABNT_C1", ALLEGRO_KEY_ABNT_C1},
+    {"YEN", ALLEGRO_KEY_YEN}, {"KANA", ALLEGRO_KEY_KANA}, {"CONVERT", ALLEGRO_KEY_CONVERT},
+    {"NOCONVERT", ALLEGRO_KEY_NOCONVERT}, {"AT", ALLEGRO_KEY_AT}, {"CIRCUMFLEX", ALLEGRO_KEY_CIRCUMFLEX},
+    {"COLON2", ALLEGRO_KEY_COLON2}, {"KANJI", ALLEGRO_KEY_KANJI}, {"LSHIFT", ALLEGRO_KEY_LSHIFT},
+    {"RSHIFT", ALLEGRO_KEY_RSHIFT}, {"LCTRL", ALLEGRO_KEY_LCTRL}, {"RCTRL", ALLEGRO_KEY_RCTRL},
+    {"ALT", ALLEGRO_KEY_ALT}, {"ALTGR", ALLEGRO_KEY_ALTGR}, {"LWIN", ALLEGRO_KEY_LWIN},
+    {"RWIN", ALLEGRO_KEY_RWIN}, {"MENU", ALLEGRO_KEY_MENU}, {"SCROLLLOCK", ALLEGRO_KEY_SCROLLLOCK},
+    {"NUMLOCK", ALLEGRO_KEY_NUMLOCK}, {"CAPSLOCK", ALLEGRO_KEY_CAPSLOCK}, {"PAD_EQUALS", ALLEGRO_KEY_PAD_EQUALS},
+    {"BACKQUOTE", ALLEGRO_KEY_BACKQUOTE}, {"SEMICOLON2", ALLEGRO_KEY_SEMICOLON2}, {"COMMAND", ALLEGRO_KEY_COMMAND},
+    {NULL, 0}
+};
+
+static const mapping_t keyboard_modifiers_mapping[] = {
+    {"shift", ALLEGRO_KEYMOD_SHIFT},
+    {"ctrl", ALLEGRO_KEYMOD_CTRL},
+    {"atl", ALLEGRO_KEYMOD_ALT},
+    {"lwin", ALLEGRO_KEYMOD_LWIN},
+    {"rwin", ALLEGRO_KEYMOD_RWIN},
+    {"menu", ALLEGRO_KEYMOD_MENU},
+    {"altgr", ALLEGRO_KEYMOD_ALTGR},
+    {"command", ALLEGRO_KEYMOD_COMMAND},
+    {"scrolllock", ALLEGRO_KEYMOD_SCROLLLOCK},
+    {"numlock", ALLEGRO_KEYMOD_NUMLOCK},
+    {"capslock", ALLEGRO_KEYMOD_CAPSLOCK},
+    {"inaltseq", ALLEGRO_KEYMOD_INALTSEQ},
+    {"accent1", ALLEGRO_KEYMOD_ACCENT1},
+    {"accent2", ALLEGRO_KEYMOD_ACCENT2},
+    {"accent3", ALLEGRO_KEYMOD_ACCENT3},
+    {"accent4", ALLEGRO_KEYMOD_ACCENT4},
+    {NULL, 0}
+};
+
 static const mapping_t audio_depth_mapping[] = {
     {"int8", ALLEGRO_AUDIO_DEPTH_INT8},
     {"int16", ALLEGRO_AUDIO_DEPTH_INT16},
@@ -711,6 +769,19 @@ static void set_bool( lua_State *L, const char *key, const int value ) {
 static void set_float( lua_State *L, const char *key, const float value ) {
     lua_pushnumber(L, value);
     lua_setfield(L, -2, key);
+}
+
+static void set_flags( lua_State *L, const char *key, const int flags, const mapping_t mapping[] ) {
+    push_flag_table(L, flags, mapping);
+    lua_setfield(L, -2, key);
+}
+
+static void register_mapping( lua_State *L, const mapping_t mapping[] ) {
+    int i;
+    for ( i = 0; mapping[i].name; ++i ) {
+        lua_pushinteger(L, mapping[i].value);
+        lua_setfield(L, -2, mapping[i].name);
+    }
 }
 
 /*
@@ -1507,6 +1578,7 @@ static int push_event( lua_State *L, ALLEGRO_EVENT *event ) {
             set_int(L, "keycode", event->keyboard.keycode);
             set_int(L, "unichar", event->keyboard.unichar);
             set_bool(L, "repeat", event->keyboard.repeat);
+            set_flags(L, "modifiers", event->keyboard.modifiers, keyboard_modifiers_mapping);
             set_ptr(L, "display", LEGATO_DISPLAY, event->keyboard.display);
             return 1;
         case ALLEGRO_EVENT_MOUSE_AXES:
@@ -5591,6 +5663,9 @@ static int luaopen_legato( lua_State *L ) {
     luaL_newlib(L, core__functions);
     lua_setfield(L, -2, "core");
     luaL_newlib(L, lg__functions);
+    lua_newtable(L);
+    register_mapping(L, keycode_mapping);
+    lua_setfield(L, -2, "keys");
     lua_setfield(L, -2, "al");
     luaL_newlib(L, fs__functions);
     lua_setfield(L, -2, "fs");
