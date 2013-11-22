@@ -38,13 +38,13 @@ Allegro 5
 ---------
 * Configuration files - implemented
 * Display             - implemented (some icons stuff is missing)
-* Events              - implemented (Joystick stuff is missing)
+* Events              - implemented
 * File I/O            - not implemented (use PhysFS instead)
 * Filesystem          - not implemented (use PhysFS instead)
 * Fixed point math    - not implemented (Lua uses numbers which are implemented as doubles -> makes no sense)
 * Fullscreen modes    - implemented
 * Graphics            - implemented (bitmap locking is missing right now)
-* Joystick            - not implemented (I was lazy...should be done!)
+* Joystick            - implemented
 * Keyboard            - implemented (Allegro 5 key symbols are missing)
 * Memory              - not implemented (Lua uses a dynamic memory management -> makes no sense)
 * Monitor             - implemented (some bits missing)
@@ -52,11 +52,11 @@ Allegro 5
 * Path                - implemented
 * State               - implemented
 * System              - implemented (some bits missing)
-* Threads             - not implemented (and probably will never be...)
+* Threads             - not implemented (and probably will never be)
 * Time                - implemented (timeout missing)
 * Timers              - implemented
 * Transformations     - implemented
-* UTF-8               - not implemented (Lua has strings...)
+* UTF-8               - not implemented (Lua has strings / use legato UTF8 functions)
 * Miscellaneous       - not implemented (nothing of value here)
 * Platform-specific   - not implemented
 * Direct3D            - not implemented
