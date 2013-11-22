@@ -1745,7 +1745,7 @@ static int lg_get_joystick_button_name( lua_State *L ) {
 }
 
 static int lg_get_joystick_stick_flags( lua_State *L ) {
-    NOT_IMPLEMENTED_MACRO;
+    return push_flag_table(L, al_get_joystick_stick_flags(to_joystick(L, 1), luaL_checkint(L, 2)), joyflags_mapping);
 }
 
 static int lg_get_joystick_num_sticks( lua_State *L ) {
@@ -1764,7 +1764,9 @@ static int lg_get_joystick_num_buttons( lua_State *L ) {
 }
 
 static int lg_get_joystick_state( lua_State *L ) {
-    NOT_IMPLEMENTED_MACRO;
+    ALLEGRO_JOYSTICK_STATE *state = (ALLEGRO_JOYSTICK_STATE*) push_data(L, LEGATO_JOYSTICK_STATE, sizeof(ALLEGRO_JOYSTICK_STATE));
+    al_get_joystick_state(to_joystick(L, 1), state);
+    return 1;
 }
 
 /*
@@ -3688,7 +3690,7 @@ static const luaL_Reg event_queue__methods[] = {
 ================================================================================
 */
 static ALLEGRO_JOYSTICK *to_joystick( lua_State *L, const int idx ) {
-    return NULL;
+    return (ALLEGRO_JOYSTICK*) to_object(L, idx, LEGATO_JOYSTICK);
 }
 
 static int joystick__tostring( lua_State *L ) {
@@ -3719,7 +3721,7 @@ static const luaL_Reg joystick__methods[] = {
 ================================================================================
 */
 static ALLEGRO_JOYSTICK_STATE *to_joystick_state( lua_State *L, const int idx ) {
-    return NULL;
+    return (ALLEGRO_JOYSTICK_STATE*) luaL_checkudata(L, idx, LEGATO_JOYSTICK_STATE);
 }
 
 static int joystick_state__tostring( lua_State *L ) {
@@ -3727,8 +3729,27 @@ static int joystick_state__tostring( lua_State *L ) {
     return 1;
 }
 
+static int joystick_state_get_button( lua_State *L ) {
+    int button = luaL_checkint(L, 2);
+    luaL_argcheck(L, button >= 0 && button < _AL_MAX_JOYSTICK_BUTTONS, 2, "invalid button");
+    lua_pushinteger(L, to_joystick_state(L, 1)->button[button]);
+    return 1;
+}
+
+static int joystick_state_get_axis( lua_State *L ) {
+    int stick, axis;
+    stick = luaL_checkint(L, 2);
+    axis = luaL_checkint(L, 3);
+    luaL_argcheck(L, stick >= 0 && stick < _AL_MAX_JOYSTICK_STICKS, 2, "invalid stick");
+    luaL_argcheck(L, axis >= 0 && axis < _AL_MAX_JOYSTICK_AXES, 3, "invalid axis");
+    lua_pushnumber(L, to_joystick_state(L, 1)->stick[stick].axis[axis]);
+    return 1;
+}
+
 static const luaL_Reg joystick_state__methods[] = {
     {"__tostring", joystick_state__tostring},
+    {"get_button", joystick_state_get_button},
+    {"get_axis", joystick_state_get_axis},
     {NULL, NULL}
 };
 
@@ -5535,6 +5556,8 @@ static int luaopen_legato( lua_State *L ) {
     create_meta(L, LEGATO_COLOR, color__methods);
     create_meta(L, LEGATO_BITMAP, bitmap__methods);
     create_meta(L, LEGATO_EVENT_QUEUE, event_queue__methods);
+    create_meta(L, LEGATO_JOYSTICK, joystick__methods);
+    create_meta(L, LEGATO_JOYSTICK_STATE, joystick_state__methods);
     create_meta(L, LEGATO_KEYBOARD_STATE, keyboard_state__methods);
     create_meta(L, LEGATO_MOUSE_STATE, mouse_state__methods);
     create_meta(L, LEGATO_MOUSE_CURSOR, mouse_cursor__methods);
