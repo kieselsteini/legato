@@ -56,8 +56,10 @@ function render()
     al.draw_text(ex.f4, blue, xpos, ypos, 'Legato')
     al.hold_bitmap_drawing(false)
 
+    local h3 = ex.f3:get_line_height()
     al.hold_bitmap_drawing(true)
     al.draw_text(ex.f3, black, target_w, 0, string.format('%.1f FPS', ex.fps), {right = true})
+    al.draw_text(ex.f3, black, target_w, h3, string.format("%d kb memory", collectgarbage('count')), {right = true})
     al.hold_bitmap_drawing(false)
 end
 
@@ -74,7 +76,7 @@ ex.f5 = assert(al.load_font(font_file, 12, {monochrome = true}))
 ex.config = assert(al.load_config_file("/data/ex_ttf.ini"))
 local timer = al.create_timer(1.0 / 60.0)
 local queue = al.create_event_queue()
-al.register_event_source(queue, al.create_keyboard_state())
+al.register_event_source(queue, 'keyboard')
 al.register_event_source(queue, display)
 al.register_event_source(queue, timer)
 
@@ -87,7 +89,7 @@ while true do
     if event.type == 'display_close' then
         return
     elseif event.type == 'key_down' then
-        if event.keycode == 59 then
+        if event.keycode == al.keys.ESCAPE then
             return
         else
             print(collectgarbage('count')) -- test

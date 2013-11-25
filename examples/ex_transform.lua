@@ -18,7 +18,7 @@ local soft_font = al.create_builtin_font()
 
 local timer = al.create_timer(1.0 / 60.0)
 local queue = al.create_event_queue()
-al.register_event_source(queue, al.create_keyboard_state())
+al.register_event_source(queue, 'keyboard')
 al.register_event_source(queue, display)
 al.register_event_source(queue, timer)
 al.start_timer(timer)
@@ -43,18 +43,18 @@ while true do
         elseif event.type == 'timer' then
             redraw = true
         elseif event.type == 'key_down' then
-            if event.keycode == 12 then
+            if event.keycode == al.keys.L then
                 blend = not blend
-            elseif event.keycode == 2 then
+            elseif event.keycode == al.keys.B then
                 use_subbitmap = not use_subbitmap
-            elseif event.keycode == 19 then
+            elseif event.keycode == al.keys.S then
                 software = not software
                 if software then
                     local t = al.create_transform()
                     al.identity_transform(t)
                     al.use_transform(t)
                 end
-            elseif event.keycode == 59 then
+            elseif event.keycode == al.keys.ESCAPE then
                 return
             else
                 print(event.keycode, collectgarbage('count'))
