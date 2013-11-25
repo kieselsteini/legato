@@ -98,6 +98,10 @@ Hmm. Compile legato.c on your computer (you will need Allegro 5+dependencies, Ph
 Lua and enet). If you don't know how to do this, ask a nice person to do it. You can
 use the executable for every game you going to create.
 
+* Windows 32bit http://lauter-helden.de/legato/download/current/Legato.exe
+* Linux 32/64bit (will come soon)
+* MacOS X builds....sorry I can't do that
+
 Next step. Create a directory called "data" in the directory of your executable.
 
 Fire up your favourite editor and create a file in the "data" directory called
