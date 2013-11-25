@@ -35,6 +35,8 @@
  Chanelog:
  ---------
 
+ 2013-11-25 - 0.3.1
+    * added core.get_os_type()  (relies on the Allegro5 defines)
  2013-11-22 - 0.3.0
     * implemented joystick routines
     * implemented joystick events
@@ -876,6 +878,25 @@ static int core_split_UTF8_string( lua_State *L ) {
 
 static int core_get_licenses( lua_State *L ) {
     lua_pushlstring(L, (const char*) licenses_txt, licenses_txt_len);
+    return 1;
+}
+
+static int core_get_os_type( lua_State *L ) {
+#if defined(ALLEGRO_LINUX)
+    lua_pushliteral(L, "linux");
+#elif defined(ALLEGRO_WINDOWS)
+    lua_pushliteral(L, "windows");
+#elif defined(ALLEGRO_MACOSX)
+    lua_pushliteral(L, "macosx");
+#elif defined(ALLEGRO_IPHONE)
+    lua_pushliteral(L, "iphone");
+#elif defined(ALLEGRO_ANDROID)
+    lua_pushliteral(L, "android");
+#elif defined(ALLEGRO_RASPBERRYPI)
+    lua_pushliteral(L, "raspberrypi");
+#else
+    lua_pushliteral(L, "unknown");
+#endif
     return 1;
 }
     
