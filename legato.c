@@ -908,6 +908,7 @@ static const luaL_Reg core__functions[] = {
     {"get_UTF8_length", core_get_UTF8_length},
     {"split_UTF8_string", core_split_UTF8_string},
     {"get_licenses", core_get_licenses},
+    {"get_os_type", core_get_os_type},
     {NULL, NULL}
 };
 
