@@ -37,6 +37,7 @@
 
  2013-11-29 - 0.3.2
     * fixed crash when using al.get_default_mixer()
+    * add version info to Windows-Messagebox
  2013-11-25 - 0.3.1
     * added core.get_os_type()  (relies on the Allegro5 defines)
  2013-11-22 - 0.3.0
@@ -118,7 +119,7 @@
 
 #define LEGATO_VERSION_MAJOR    0
 #define LEGATO_VERSION_MINOR    3
-#define LEGATO_VERSION_PATCH    2
+#define LEGATO_VERSION_PATCH    3
 
 #define LEGATO_LITTLE_ENDIAN    0
 #define LEGATO_BIG_ENDIAN       1
@@ -549,7 +550,9 @@ static const mapping_t enet_packet_flag_mapping[] = {
 */
 #ifdef ALLEGRO_WINDOWS
 static void show_error( const char *message ) {
-    al_show_native_message_box(NULL, "Legato Runtime", "Fatal error:", message, NULL, ALLEGRO_MESSAGEBOX_ERROR);
+    char title[512];
+    sprintf_s(title, sizeof(title), "Legato Runtime (%d.%d.%d)", LEGATO_VERSION_MAJOR, LEGATO_VERSION_MINOR, LEGATO_VERSION_PATCH);
+    al_show_native_message_box(NULL, title, "Fatal error:", message, NULL, ALLEGRO_MESSAGEBOX_ERROR);
 }
 #else
 static void show_error( const char *message ) {
