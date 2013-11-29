@@ -35,6 +35,8 @@
  Chanelog:
  ---------
 
+ 2013-11-29 - 0.3.2
+    * fixed crash when using al.get_default_mixer()
  2013-11-25 - 0.3.1
     * added core.get_os_type()  (relies on the Allegro5 defines)
  2013-11-22 - 0.3.0
@@ -116,7 +118,7 @@
 
 #define LEGATO_VERSION_MAJOR    0
 #define LEGATO_VERSION_MINOR    3
-#define LEGATO_VERSION_PATCH    0
+#define LEGATO_VERSION_PATCH    2
 
 #define LEGATO_LITTLE_ENDIAN    0
 #define LEGATO_BIG_ENDIAN       1
@@ -2742,7 +2744,7 @@ static int lg_create_mixer( lua_State *L ) {
 }
 
 static int lg_destroy_mixer( lua_State *L ) {
-    ALLEGRO_MIXER *mixer = (ALLEGRO_MIXER*) to_object(L, 1, LEGATO_MIXER);
+    ALLEGRO_MIXER *mixer = (ALLEGRO_MIXER*) to_object_gc(L, 1, LEGATO_MIXER);
     if ( mixer ) {
         al_destroy_mixer(mixer);
         clear_object(L, 1);
@@ -2753,7 +2755,7 @@ static int lg_destroy_mixer( lua_State *L ) {
 static int lg_get_default_mixer( lua_State *L ) {
     ALLEGRO_MIXER *mixer = al_get_default_mixer();
     if ( mixer ) {
-        return push_object(L, LEGATO_MIXER, mixer, 0);
+        return push_object_by_pointer(L, LEGATO_MIXER, mixer);
     } else {
         return 0;
     }
