@@ -35,6 +35,10 @@
  Chanelog:
  ---------
 
+ 2013-12-05 - 0.3.3
+    * fixed fs.set_write_dir
+    * fixed mouse_button_up event
+    * added missing bitmap draw methods
  2013-11-29 - 0.3.2
     * fixed crash when using al.get_default_mixer()
     * add version info to Windows-Messagebox
@@ -1638,7 +1642,7 @@ static int push_event( lua_State *L, ALLEGRO_EVENT *event ) {
             set_ptr(L, "display", LEGATO_DISPLAY, event->mouse.display);
             return 1;
         case ALLEGRO_EVENT_MOUSE_BUTTON_UP:
-            set_str(L, "type", "mouse_button_down");
+            set_str(L, "type", "mouse_button_up");
             set_int(L, "x", event->mouse.x);
             set_int(L, "y", event->mouse.y);
             set_int(L, "z", event->mouse.z);
@@ -3750,6 +3754,8 @@ static const luaL_Reg bitmap__methods[] = {
     {"draw_tinted", lg_draw_tinted_bitmap},
     {"draw_region", lg_draw_bitmap_region},
     {"draw_tinted_region", lg_draw_tinted_bitmap_region},
+    {"draw_rotated", lg_draw_rotated_bitmap},
+    {"draw_tinted_rotated", lg_draw_tinted_rotated_bitmap},
     {"draw_scaled_rotated", lg_draw_scaled_rotated_bitmap},
     {"draw_tinted_scaled_rotated", lg_draw_tinted_scaled_rotated_bitmap},
     {"draw_tinted_scaled_rotated_region", lg_draw_tinted_scaled_rotated_bitmap_region},
@@ -4425,6 +4431,7 @@ static int fs_set_write_dir( lua_State *L ) {
     const char *dir = luaL_checkstring(L, 1);
     al_set_standard_fs_interface();
     al_set_standard_file_interface();
+    al_make_directory(dir); /* create the dir in advance */
     lua_pushboolean(L, PHYSFS_setWriteDir(dir));
     al_set_physfs_file_interface();
     return 1;
