@@ -35,6 +35,9 @@
  Chanelog:
  ---------
 
+ 2013-12-06 - 0.3.4
+    * add service as method for hosts
+    * fixed key BACKSPACE
  2013-12-05 - 0.3.3
     * fixed fs.set_write_dir
     * fixed mouse_button_up event
@@ -443,7 +446,7 @@ static const mapping_t keycode_mapping[] = {
     {"F5", ALLEGRO_KEY_F5}, {"F6", ALLEGRO_KEY_F6}, {"F7", ALLEGRO_KEY_F7}, {"F8", ALLEGRO_KEY_F8},
     {"F9", ALLEGRO_KEY_F9}, {"F10", ALLEGRO_KEY_F10}, {"F11", ALLEGRO_KEY_F11}, {"F12", ALLEGRO_KEY_F12},
     {"ESCAPE", ALLEGRO_KEY_ESCAPE}, {"TILDE", ALLEGRO_KEY_TILDE}, {"EQUALS", ALLEGRO_KEY_EQUALS},
-    {"BACKSAPCE", ALLEGRO_KEY_BACKSPACE}, {"TAB", ALLEGRO_KEY_TAB}, {"OPENBRACE", ALLEGRO_KEY_OPENBRACE},
+    {"BACKSPACE", ALLEGRO_KEY_BACKSPACE}, {"TAB", ALLEGRO_KEY_TAB}, {"OPENBRACE", ALLEGRO_KEY_OPENBRACE},
     {"CLOSEBRACE", ALLEGRO_KEY_CLOSEBRACE}, {"ENTER", ALLEGRO_KEY_ENTER}, {"SEMICOLON", ALLEGRO_KEY_SEMICOLON},
     {"QUOTE", ALLEGRO_KEY_QUOTE}, {"BACKSLASH", ALLEGRO_KEY_BACKSLASH}, {"BACKSLASH2", ALLEGRO_KEY_BACKSLASH2},
     {"COMMA", ALLEGRO_KEY_COMMA}, {"FULLSTOP", ALLEGRO_KEY_FULLSTOP}, {"SLASH", ALLEGRO_KEY_SLASH},
@@ -5064,6 +5067,7 @@ static const luaL_Reg host__methods[] = {
     {"__tostring", host__tostring},
     /*{"__eq", host__eq},*/
     {"__gc", host__gc},
+    {"service", lg_enet_service_host},
     {NULL, NULL}
 };
 
