@@ -126,7 +126,7 @@
 
 #define LEGATO_VERSION_MAJOR    0
 #define LEGATO_VERSION_MINOR    3
-#define LEGATO_VERSION_PATCH    3
+#define LEGATO_VERSION_PATCH    4
 
 #define LEGATO_LITTLE_ENDIAN    0
 #define LEGATO_BIG_ENDIAN       1
@@ -5067,6 +5067,15 @@ static const luaL_Reg host__methods[] = {
     {"__tostring", host__tostring},
     /*{"__eq", host__eq},*/
     {"__gc", host__gc},
+    {"compress_with_range_coder", lg_enet_compress_host_with_range_coder},
+    {"connect", lg_enet_connect_host},
+    {"broadcast", lg_enet_broadcast_packet},
+    {"set_channel_limit", lg_enet_set_host_channel_limit},
+    {"get_channel_limit", lg_enet_get_host_channel_limit},
+    {"get_bandwith_limit", lg_enet_get_host_bandwidth_limit},
+    {"set_bandwith_limit", lg_enet_set_host_bandwidth_limit},
+    {"flush", lg_enet_flush_host},
+    {"check_events", lg_enet_check_host_events},
     {"service", lg_enet_service_host},
     {NULL, NULL}
 };
@@ -5083,7 +5092,7 @@ static ENetPeer *to_peer( lua_State *L, const int idx ) {
 }
 
 static int peer__tostring( lua_State *L ) {
-    lua_pushfstring(L, "%s: %p", LEGATO_PEER, to_object_gc(L, 1, LEGATO_PEER));
+    lua_pushfstring(L, "%s: %p", LEGATO_PEER, to_peer(L, 1));
     return 1;
 }
 
