@@ -36,6 +36,8 @@
  ---------
 
  2013-12-06 - 0.3.4
+    * add save_bitmap
+    * implemented grab_font_from_bitmap
     * add service as method for hosts
     * fixed key BACKSPACE
  2013-12-05 - 0.3.3
