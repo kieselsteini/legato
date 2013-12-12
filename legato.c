@@ -1525,6 +1525,11 @@ static int lg_load_bitmap( lua_State *L ) {
     return push_object(L, LEGATO_BITMAP, al_load_bitmap(luaL_checkstring(L, 1)), 1);
 }
 
+static int lg_save_bitmap( lua_State *L ) {
+    lua_pushboolean(L, al_save_bitmap(luaL_checkstring(L, 1), to_bitmap(L, 2)));
+    return 1;
+}
+
 /*
 ================================================================================
 
@@ -3088,7 +3093,31 @@ static int lg_get_text_dimensions( lua_State *L ) {
 }
 
 static int lg_grab_font_from_bitmap( lua_State *L ) {
-    NOT_IMPLEMENTED_MACRO;
+    int i, ranges_n;
+    int ranges[64*2];
+
+    luaL_checktype(L, 2, LUA_TTABLE);
+    for ( i = 1, ranges_n = 0; i < 64; ++i ) {
+        lua_rawgeti(L, 2, i);
+        if ( lua_type(L, -1) == LUA_TTABLE ) {
+            lua_rawgeti(L, -1, 1);
+            ranges[ranges_n*2] = luaL_checkint(L, -1);
+            lua_rawgeti(L, -2, 2);
+            ranges[ranges_n*2+1] = luaL_checkint(L, -1);
+            lua_pop(L, 3);
+            if ( ++ranges_n >= 32 ) {
+                break;
+            }
+        } else {
+            lua_pop(L, 1);
+            break;
+        }
+    }
+    if ( ranges_n > 0 ) {
+        return push_object(L, LEGATO_FONT, al_grab_font_from_bitmap(to_bitmap(L, 1), ranges_n, ranges), 1);
+    } else {
+        return 0;
+    }
 }
 
 static int lg_load_bitmap_font( lua_State *L ) {
@@ -3353,6 +3382,7 @@ static const luaL_Reg lg__functions[] = {
     {"hold_bitmap_drawing", lg_hold_bitmap_drawing},
     {"is_bitmap_drawing_held", lg_is_bitmap_drawing_held},
     {"load_bitmap", lg_load_bitmap},
+    {"save_bitmap", lg_save_bitmap},
 
     {"is_keyboard_installed", lg_is_keyboard_installed},
     {"create_keyboard_state", lg_create_keyboard_state},
