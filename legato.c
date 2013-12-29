@@ -35,6 +35,10 @@
  Chanelog:
  ---------
 
+ 2013-12-29 - 0.3.5
+    * get peer round trip time
+    * implemented get_parent_bitmap
+    * fixed some type conversions
  2013-12-29 - 0.3.4
     * fixed legato.al.copy_transform
     * show dialog box for MacOS X
@@ -131,7 +135,7 @@
 
 #define LEGATO_VERSION_MAJOR    0
 #define LEGATO_VERSION_MINOR    3
-#define LEGATO_VERSION_PATCH    4
+#define LEGATO_VERSION_PATCH    5
 
 #define LEGATO_LITTLE_ENDIAN    0
 #define LEGATO_BIG_ENDIAN       1
@@ -1348,7 +1352,12 @@ static int lg_is_sub_bitmap( lua_State *L ) {
 }
 
 static int lg_get_parent_bitmap( lua_State *L ) {
-    NOT_IMPLEMENTED_MACRO;
+    ALLEGRO_BITMAP *parent = al_get_parent_bitmap(to_bitmap(L, 1));
+    if ( parent != NULL ) {
+        return push_object_by_pointer(L, LEGATO_BITMAP, parent);
+    } else {
+        return 0;
+    }
 }
 
 static int lg_clear_to_color( lua_State *L ) {
@@ -2479,12 +2488,12 @@ static int lg_reserve_samples( lua_State *L ) {
 }
 
 static int lg_get_audio_depth_size( lua_State *L ) {
-    lua_pushinteger(L, al_get_audio_depth_size(parse_flag_table(L, 1, audio_depth_mapping)));
+    lua_pushinteger(L, al_get_audio_depth_size((ALLEGRO_AUDIO_DEPTH) parse_flag_table(L, 1, audio_depth_mapping)));
     return 1;
 }
 
 static int lg_get_channel_count( lua_State *L ) {
-    lua_pushinteger(L, al_get_channel_count(parse_enum_name(L, 1, channel_conf_mapping)));
+    lua_pushinteger(L, al_get_channel_count((ALLEGRO_CHANNEL_CONF) parse_enum_name(L, 1, channel_conf_mapping)));
     return 1;
 }
 
@@ -2497,7 +2506,7 @@ static int lg_get_channel_count( lua_State *L ) {
 */
 static int lg_create_voice( lua_State *L ) {
     return push_object(L, LEGATO_VOICE, al_create_voice(luaL_checkint(L, 1),
-                parse_flag_table(L, 2, audio_depth_mapping), parse_enum_name(L, 3, channel_conf_mapping)), 1);
+                (ALLEGRO_AUDIO_DEPTH) parse_flag_table(L, 2, audio_depth_mapping), (ALLEGRO_CHANNEL_CONF) parse_enum_name(L, 3, channel_conf_mapping)), 1);
 }
 
 static int lg_destroy_voice( lua_State *L ) {
@@ -2582,7 +2591,7 @@ static int lg_play_sample( lua_State *L ) {
     int success;
     ALLEGRO_SAMPLE_ID *ret_id = (ALLEGRO_SAMPLE_ID*) push_data(L, LEGATO_SAMPLE_ID, sizeof(ALLEGRO_SAMPLE_ID));
     success = al_play_sample(to_audio_sample(L, 1), luaL_checknumber(L, 2), luaL_checknumber(L, 3),
-            luaL_checknumber(L, 4), parse_enum_name(L, 5, playmode_mapping), ret_id);
+            luaL_checknumber(L, 4), (ALLEGRO_PLAYMODE) parse_enum_name(L, 5, playmode_mapping), ret_id);
     lua_pushboolean(L, success);
     return success ? 2 : 1;
 }
@@ -2718,7 +2727,7 @@ static int lg_get_sample_instance_playmode( lua_State *L ) {
 }
 
 static int lg_set_sample_instance_playmode( lua_State *L ) {
-    lua_pushboolean(L, al_set_sample_instance_playmode(to_sample_instance(L, 1), parse_enum_name(L, 2, playmode_mapping)));
+    lua_pushboolean(L, al_set_sample_instance_playmode(to_sample_instance(L, 1), (ALLEGRO_PLAYMODE) parse_enum_name(L, 2, playmode_mapping)));
     return 1;
 }
 
@@ -2760,7 +2769,7 @@ static int lg_set_sample( lua_State *L ) {
 */
 static int lg_create_mixer( lua_State *L ) {
     return push_object(L, LEGATO_MIXER, al_create_mixer(luaL_checkint(L, 1),
-                parse_flag_table(L, 2, audio_depth_mapping), parse_enum_name(L, 3, channel_conf_mapping)), 1);
+                (ALLEGRO_AUDIO_DEPTH) parse_flag_table(L, 2, audio_depth_mapping), (ALLEGRO_CHANNEL_CONF) parse_enum_name(L, 3, channel_conf_mapping)), 1);
 }
 
 static int lg_destroy_mixer( lua_State *L ) {
@@ -2838,7 +2847,7 @@ static int lg_get_mixer_quality( lua_State *L ) {
 }
 
 static int lg_set_mixer_quality( lua_State *L ) {
-    lua_pushboolean(L, al_set_mixer_quality(to_mixer(L, 1), parse_enum_name(L, 2, mixer_quality_mapping)));
+    lua_pushboolean(L, al_set_mixer_quality(to_mixer(L, 1), (ALLEGRO_MIXER_QUALITY) parse_enum_name(L, 2, mixer_quality_mapping)));
     return 1;
 }
 
@@ -2953,7 +2962,7 @@ static int lg_get_audio_stream_playmode( lua_State *L ) {
 }
 
 static int lg_set_audio_stream_playmode( lua_State *L ) {
-    lua_pushboolean(L, al_set_audio_stream_playmode(to_audio_stream(L, 1), parse_enum_name(L, 2, playmode_mapping)));
+    lua_pushboolean(L, al_set_audio_stream_playmode(to_audio_stream(L, 1), (ALLEGRO_PLAYMODE) parse_enum_name(L, 2, playmode_mapping)));
     return 1;
 }
 
@@ -4988,6 +4997,11 @@ static int lg_enet_get_peer_address( lua_State *L ) {
     return 1;
 }
 
+static int lg_enet_get_peer_round_trip_time( lua_State *L ) {
+    lua_pushinteger(L, to_peer(L, 1)->roundTripTime);
+    return 1;
+}
+
 static const luaL_Reg enet__functions[] = {
     {"create_address", lg_enet_create_address},
     {"get_address_port", lg_enet_get_address_port},
@@ -5022,6 +5036,7 @@ static const luaL_Reg enet__functions[] = {
     {"disconnect_peer_now", lg_enet_disconnect_peer_now},
     {"disconnect_peer_later", lg_enet_disconnect_peer_later},
     {"get_peer_address", lg_enet_get_peer_address},
+    {"get_peer_round_trip_time", lg_enet_get_peer_round_trip_time},
 
     {NULL, NULL}
 };
@@ -5160,6 +5175,7 @@ static const luaL_Reg peer__methods[] = {
     {"disconnect_now", lg_enet_disconnect_peer_now},
     {"disconnect_later", lg_enet_disconnect_peer_later},
     {"get_address", lg_enet_get_peer_address},
+    {"get_round_trip_time", lg_enet_get_peer_round_trip_time},
     {NULL, NULL}
 };
 
