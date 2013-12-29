@@ -35,7 +35,10 @@
  Chanelog:
  ---------
 
- 2013-12-06 - 0.3.4
+ 2013-12-29 - 0.3.4
+    * fixed legato.al.copy_transform
+    * show dialog box for MacOS X
+    * added support for 'x', '?' in pack/unpack
     * add save_bitmap
     * implemented grab_font_from_bitmap
     * add service as method for hosts
@@ -557,7 +560,7 @@ static const mapping_t enet_packet_flag_mapping[] = {
 
 ================================================================================
 */
-#ifdef ALLEGRO_WINDOWS
+#if defined(ALLEGRO_WINDOWS) || defined(ALLEGRO_MACOSX)
 static void show_error( const char *message ) {
     char title[512];
     sprintf_s(title, sizeof(title), "Legato Runtime (%d.%d.%d)", LEGATO_VERSION_MAJOR, LEGATO_VERSION_MINOR, LEGATO_VERSION_PATCH);
@@ -2394,7 +2397,7 @@ static int lg_create_transform( lua_State *L ) {
 }
 
 static int lg_copy_transform( lua_State *L ) {
-    al_copy_transform((ALLEGRO_TRANSFORM*) push_data(L, LEGATO_TRANSFORM, sizeof(ALLEGRO_TRANSFORM)), to_transform(L, 2));
+    al_copy_transform((ALLEGRO_TRANSFORM*) push_data(L, LEGATO_TRANSFORM, sizeof(ALLEGRO_TRANSFORM)), to_transform(L, 1));
     return 1;
 }
 
@@ -5379,6 +5382,8 @@ static int bin_pack( lua_State *L ) {
                     luaL_addlstring(&buffer, (char*) &d, sizeof(double));
                     break;
                 }
+            case 'x': luaL_addchar(&buffer, 0); break;
+            case '?': luaL_addchar(&buffer, lua_toboolean(L, arg++)); break;
             default:
                 return push_error(L, "unknown format character " LUA_QL("%c"), *fmt);
         }
@@ -5452,6 +5457,13 @@ static int bin_unpack( lua_State *L ) {
                 break;
             case 'd':
                 lua_pushnumber(L, *((double*) bin_check_unpack_size(L, sizeof(double), &size, &data)));
+                ++args;
+                break;
+            case 'x':
+                bin_check_unpack_size(L, 1, &size, &data); /* drop a byte */
+                break;
+            case '?':
+                lua_pushboolean(L, *((unsigned char*) bin_check_unpack_size(L, 1, &size, &data)));
                 ++args;
                 break;
             default:
