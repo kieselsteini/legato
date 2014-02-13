@@ -34,7 +34,9 @@
 
  Chanelog:
  ---------
-
+ 
+ 2014-02-13 - 0.3.5
+    * added path methods
  2013-12-29 - 0.3.4
     * fixed legato.al.copy_transform
     * show dialog box for MacOS X
@@ -571,6 +573,7 @@ static void show_error( const char *message ) {
     fprintf(stderr, "Legato Runtime (%d.%d.%d)\nFatal error:\n%s\n", LEGATO_VERSION_MAJOR, LEGATO_VERSION_MINOR, LEGATO_VERSION_PATCH, message);
 }
 #endif /* ALLEGRO_WINDOWS */
+
 
 /*
 ================================================================================
@@ -5880,6 +5883,7 @@ static int luaopen_legato( lua_State *L ) {
     create_meta(L, LEGATO_KEYBOARD_STATE, keyboard_state__methods);
     create_meta(L, LEGATO_MOUSE_STATE, mouse_state__methods);
     create_meta(L, LEGATO_MOUSE_CURSOR, mouse_cursor__methods);
+    create_meta(L, LEGATO_PATH, path__methods);
     create_meta(L, LEGATO_STATE, state__methods);
     create_meta(L, LEGATO_TIMER, timer__methods);
     create_meta(L, LEGATO_TRANSFORM, transform__methods);
